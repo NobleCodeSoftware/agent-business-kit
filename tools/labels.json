@@ -1,0 +1,142 @@
+[
+ {
+  "name": "type:task",
+  "color": "1d76db",
+  "description": "Task in the queue (processes/TASKS.md)"
+ },
+ {
+  "name": "type:desk",
+  "color": "b60205",
+  "description": "Decision and action for the owner (processes/DESK.md)"
+ },
+ {
+  "name": "type:incident",
+  "color": "d93f0b",
+  "description": "Outage or event needing analysis"
+ },
+ {
+  "name": "type:experiment",
+  "color": "5319e7",
+  "description": "Experiment card"
+ },
+ {
+  "name": "type:pulse",
+  "color": "c5def5",
+  "description": "Routine pulse - edited body, no notifications"
+ },
+ {
+  "name": "type:report",
+  "color": "bfdadc",
+  "description": "Report for the owner"
+ },
+ {
+  "name": "dept:ops",
+  "color": "0e8a16",
+  "description": "Department OPS"
+ },
+ {
+  "name": "dept:biz",
+  "color": "0e8a16",
+  "description": "Department BIZ"
+ },
+ {
+  "name": "dept:bld",
+  "color": "0e8a16",
+  "description": "Department BLD"
+ },
+ {
+  "name": "dept:grw",
+  "color": "0e8a16",
+  "description": "Department GRW"
+ },
+ {
+  "name": "dept:qa",
+  "color": "0e8a16",
+  "description": "Department QA"
+ },
+ {
+  "name": "dept:fin",
+  "color": "0e8a16",
+  "description": "Department FIN"
+ },
+ {
+  "name": "dept:sup",
+  "color": "0e8a16",
+  "description": "Department SUP"
+ },
+ {
+  "name": "dept:it",
+  "color": "0e8a16",
+  "description": "Department IT"
+ },
+ {
+  "name": "state:new",
+  "color": "ededed",
+  "description": "Waiting to be claimed"
+ },
+ {
+  "name": "state:in-progress",
+  "color": "fbca04",
+  "description": "Claimed, lease running"
+ },
+ {
+  "name": "state:review",
+  "color": "f9d0c4",
+  "description": "Waiting for QA review"
+ },
+ {
+  "name": "state:blocked",
+  "color": "000000",
+  "description": "Dead task after max_attempts"
+ },
+ {
+  "name": "p1-security-legal",
+  "color": "b60205",
+  "description": "Priority 1: security and legal"
+ },
+ {
+  "name": "p2-customer",
+  "color": "d93f0b",
+  "description": "Priority 2: customers and deadlines"
+ },
+ {
+  "name": "p3-revenue",
+  "color": "fbca04",
+  "description": "Priority 3: revenue"
+ },
+ {
+  "name": "p4-growth",
+  "color": "0e8a16",
+  "description": "Priority 4: growth"
+ },
+ {
+  "name": "p5-rnd",
+  "color": "c5def5",
+  "description": "Priority 5: research"
+ },
+ {
+  "name": "urgent",
+  "color": "b60205",
+  "description": "Needs attention now"
+ },
+ {
+  "name": "channel:paused",
+  "color": "000000",
+  "description": "Channel paused after repeated failures"
+ },
+ {
+  "name": "result:yes",
+  "color": "0e8a16",
+  "description": "Desk: approved"
+ },
+ {
+  "name": "result:no",
+  "color": "b60205",
+  "description": "Desk: declined"
+ },
+ {
+  "name": "result:expired",
+  "color": "ededed",
+  "description": "Desk: expired = declined"
+ }
+]

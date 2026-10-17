@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "approved_by_owner": false,
+  "timezone": "UTC",
+  "base_currency": "USD",
+  "owner": {
+    "github": "your-github-login"
+  },
+  "spending": {
+    "without_desk": 0,
+    "reserve_percent_of_balance": 30
+  },
+  "revenue": {
+    "period_limit": 0,
+    "period_months": 3,
+    "alert_thresholds": [
+      0.7,
+      0.85,
+      0.95
+    ],
+    "note": "0 disables the cap. Set it if your legal form has a revenue ceiling."
+  },
+  "alerts": {
+    "max_per_day": 3,
+    "repeat_silence_h": 6
+  },
+  "desk": {
+    "default_deadline_days": 3,
+    "no_answer": "decline",
+    "notification": "once_a_day"
+  },
+  "tasks": {
+    "lease_h": 6,
+    "max_attempts": 3
+  },
+  "power": {
+    "max_routine_runs_per_day": 6,
+    "max_subagents_per_shift": 4
+  },
+  "routines": {
+    "OPS": {
+      "description": "Operations shift",
+      "schedule": "cron 0 0,6,12,18 * * * (UTC)",
+      "max_silence_h": 12,
+      "alert_after_h": 15,
+      "max_shift_h": 4
+    },
+    "BIZ": {
+      "description": "Business development",
+      "schedule": "cron 30 7 * * * (UTC)",
+      "max_silence_h": 30,
+      "max_shift_h": 4
+    },
+    "FIN": {
+      "description": "Finance and audit",
+      "schedule": "cron 30 20 * * * (UTC)",
+      "max_silence_h": 30,
+      "max_shift_h": 3
+    },
+    "GUARDIAN": {
+      "description": "GitHub Actions, hourly",
+      "max_silence_h": 3
+    }
+  },
+  "pace": {
+    "publications_per_channel_per_day": 5,
+    "new_repos_per_week": 2
+  },
+  "approved_channels": [],
+  "approved_accounts": []
+}
