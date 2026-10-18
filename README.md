@@ -1,10 +1,11 @@
 # Agent Business Kit for Claude Code
 
-A starter kit for **running a micro-business with AI agents on a schedule**, while the human owner only
-decides and pays. It covers the business side, not the coding workflow: an owner's desk for every
-human-only decision, a sales ledger, written stop conditions for experiments, and pulses checked by an
-independent guardian. A constitution template, written processes, small deterministic tools with tests
-and routine prompts hold it together, all in plain files and GitHub issues.
+A starter kit for **running a micro-business with AI agents on Claude Code routines** (scheduled cloud
+sessions), while the human owner only decides and pays. It covers the business side, not the coding
+workflow: an owner's desk for every human-only decision, a sales ledger, written stop conditions for
+experiments, and pulses checked by an independent guardian. A constitution template, written processes,
+small deterministic tools with tests and routine prompts hold it together, all in plain files and GitHub
+issues.
 
 > Status: early MVP (v0.1). It is a set of conventions and scripts, not a product with support.
 > Read "Limitations" before you start.

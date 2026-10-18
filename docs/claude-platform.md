@@ -1,4 +1,4 @@
-# Platform notes: Claude Code in the cloud, routines and limits
+# Platform notes: Claude Code routines, cloud sessions and limits
 
 Written as a working snapshot. Routines were still labelled a research preview on the date below, so
 **verify every item against the current official documentation before relying on it.**
