@@ -81,8 +81,10 @@ Prerequisites: a GitHub account, Python 3.10+, and a Claude plan that includes C
    In CI of your own installation you can also forbid your own identifiers (names, domains, ids) without
    writing them into the repo: set `KIT_FORBIDDEN="phrase one,phrase two"` (comma-separated, from a CI
    secret) and the `TestNoPersonalData` test will fail if any phrase appears in the kit files.
-5. **Turn on the guardian:** push; the `Guardian` workflow runs hourly and creates the labels. Run it
-   once by hand from the Actions tab to see its "Pulse: GUARDIAN" issue.
+5. **Turn on the guardian:** it is off by default, so the kit's own repo and fresh copies stay quiet.
+   In Settings → Secrets and variables → Actions → Variables, add `GUARDIAN_ENABLED` = `true`. The
+   `Guardian` workflow then runs hourly and creates the labels. Run it once by hand from the Actions tab
+   to see its "Pulse: GUARDIAN" issue. In a fork, also enable workflows in the Actions tab.
 6. **Create a permanent session** for OPS with your repo attached, then a **routine** that wakes it
    with the message from `routines/README.md`. Paste `routines/OPS.md` as the shift prompt after
    replacing the `[BRACKETED]` fields. Add BIZ and FIN the same way when OPS runs cleanly.

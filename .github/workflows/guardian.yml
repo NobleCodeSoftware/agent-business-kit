@@ -15,6 +15,8 @@ concurrency:
 
 jobs:
   watch:
+    # Off until the owner turns it on (README, step 5), so the kit's own repo and fresh copies stay quiet.
+    if: vars.GUARDIAN_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
