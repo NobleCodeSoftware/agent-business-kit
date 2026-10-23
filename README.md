@@ -156,6 +156,15 @@ tools/          kit.py, alarm.py, guardian.py, labels.json, tests/
 .github/        CI and guardian workflows
 ```
 
+## Related
+
+- [claude-pii-guard](https://github.com/NobleCodeSoftware/claude-pii-guard): a Claude Code plugin
+  (a local PreToolUse hook, no network access) that checks file edits and `git commit`s for e-mail
+  addresses, phone numbers, Polish PESEL numbers, IBANs, card numbers and your own private phrases,
+  and by default blocks them (it can also ask or only warn). It is installed per machine; cloud
+  sessions, including routines, load plugins differently, so check its README before relying on it
+  there.
+
 ## Contributing, security, license
 
 See `CONTRIBUTING.md`, `SECURITY.md` and `LICENSE` (MIT).
