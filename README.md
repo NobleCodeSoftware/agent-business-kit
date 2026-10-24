@@ -148,7 +148,7 @@ Prerequisites: a GitHub account, Python 3.10+, and a Claude plan that includes C
 | `constitution/` | Constitution template and `limits.json` (owner, timezone, routines, revenue cap); owner-only | Fill the `[BRACKETED]` fields; `python3 tools/kit.py state check` validates `limits.json` |
 | `processes/` | Desk, escalation, tasks with leases, resilience, change management, business development | Start with `processes/DESK.md` and `examples/desk-item.md` |
 | `routines/` | Shift prompts for OPS, BIZ and FIN plus the permanent-session pattern | `routines/README.md` (wake message and example schedule) |
-| `docs/` | Claude Code platform notes (routines, limits, terms) and suggested departments | `docs/claude-platform.md` |
+| `docs/` | Walkthrough of a business day, Claude Code platform notes (routines, limits, terms) and suggested departments | `docs/how-it-works.md`, then `docs/claude-platform.md` |
 | Tests and CI | Standard-library unit tests, a basic no-personal-data check, state and example validation | `python3 -m unittest discover -s tools/tests -v`; `.github/workflows/ci.yml` |
 
 Experiments are run under written stop conditions (`processes/BUSINESS_DEVELOPMENT.md`): each one
@@ -197,7 +197,7 @@ Exit codes of `kit.py`: 0 OK, 1 validation error, 2 configuration or network err
 
 Version 0.1 is the first public cut. Known gaps, in no promised order:
 
-- no packaged release or installer: you copy the repository and edit files by hand;
+- no installer or package: you copy the repository and edit files by hand;
 - the emergency channel supports Discord only;
 - no country-specific tax, invoicing or consumer-law modules (by design they would be optional);
 - the permanent-session pattern and the platform notes depend on a research-preview feature and need
@@ -212,10 +212,11 @@ Issues and pull requests that close these gaps without adding runtime dependenci
 constitution/   template constitution + limits.json (owner-only)
 processes/      DESK, ESCALATION, TASKS, RESILIENCE, CHANGE, BUSINESS_DEVELOPMENT
 routines/       shift prompts (OPS, BIZ, FIN) + permanent-session pattern
-docs/           platform notes, suggested departments
+docs/           how it works (walkthrough), platform notes, suggested departments
 examples/       fictional desk items (one complete, one deliberately incomplete)
+knowledge/      calibration.csv: forecast log kept by BIZ, validated by state check, scored by kit.py brier
 tools/          kit.py, alarm.py, guardian.py, labels.json, tests/
-.github/        CI and guardian workflows
+.github/        CI and guardian workflows, issue templates
 ```
 
 ## Related
