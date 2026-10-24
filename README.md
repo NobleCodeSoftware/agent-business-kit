@@ -10,6 +10,50 @@ issues.
 > Status: early MVP (v0.1). It is a set of conventions and scripts, not a product with support.
 > Read "Limitations" before you start.
 
+**Built by AI, openly.** This kit is written and maintained by AI agents (Claude, working in Claude
+Code); a human owner decides what ships. Code, documentation and release notes are produced that way,
+and we say so rather than hide it.
+
+## Demo
+
+`kit.py desk check` decides whether a request to the owner is a complete yes/no package before an
+agent is allowed to publish it. A real run on the two fictional examples shipped in `examples/`:
+
+```console
+$ python3 tools/kit.py desk check examples/desk-item.md
+Item complete
+$ python3 tools/kit.py desk check examples/desk-item-incomplete.md
+Item INCOMPLETE - do not publish:
+- due date 2020-01-15 has passed
+- missing line **Urgency:** normal|urgent
+- section "Why" is empty
+- missing section "Risks and mitigation"
+- missing section "Alternatives considered"
+- missing section "If you decline or do not answer"
+- missing section "Attachments"
+- unfilled template field: <amount>
+$ echo $?
+1
+```
+
+The non-zero exit code lets a routine prompt or CI block the item instead of trusting the agent's
+own judgement.
+
+## Quick start (try it locally)
+
+Requirements: Python 3.10 or newer (CI runs 3.10 and 3.12), git. Standard library only, nothing to
+install. The tools run offline; Claude Code is needed only when you set up routines (next sections).
+
+```bash
+git clone https://github.com/NobleCodeSoftware/agent-business-kit.git
+cd agent-business-kit
+python3 -m unittest discover -s tools/tests
+python3 tools/kit.py state check
+python3 tools/kit.py desk check examples/desk-item.md
+```
+
+Expected: the tests end with `OK`, then `State OK` and `Item complete`.
+
 ## The problem
 
 Letting an AI agent "run a business" fails in boring ways, not dramatic ones:
@@ -62,7 +106,7 @@ Key ideas:
 5. **Change management** and **business development with forecast calibration** (Brier score).
 6. **Permanent department sessions** (`routines/README.md`, `docs/claude-platform.md`).
 
-## Quickstart (about 10 minutes, plus optional chat alerts)
+## Setting up your own business (about 10 minutes, plus optional chat alerts)
 
 Prerequisites: a GitHub account, Python 3.10+, and a Claude plan that includes Claude Code routines.
 
@@ -94,13 +138,18 @@ Prerequisites: a GitHub account, Python 3.10+, and a Claude plan that includes C
    falls back to `urgent` issues.
 8. Create a first task issue (`processes/TASKS.md`) and watch the first shift: pulse, lease, result.
 
-## Tools (standard library only)
+## Components
 
-| Tool | Purpose |
-|---|---|
-| `tools/kit.py` | Owner's desk completeness check (is the yes/no package complete?), sales ledger with a supplied exchange rate, optional revenue cap, forecast scoring (Brier) for experiments, pulses, STOP check, state validation, leases, intent/result records, guardian assessment |
-| `tools/alarm.py` | Owner alerts with dedupe and daily cap, batched desk notice, owner commands (`!stop`, `!start`, `!yes N`), plan B exit codes |
-| `tools/guardian.py` | Hourly watchdog for GitHub Actions, independent of the agents: pulses (is the business alive?), constitution integrity, revenue cap, plan B issues |
+| Component | Purpose | Try it / where to start |
+|---|---|---|
+| `tools/kit.py` | Owner's desk completeness check (is the yes/no package complete?), sales ledger with a supplied exchange rate, optional revenue cap, forecast scoring (Brier) for experiments, pulses, STOP check, state validation, leases, intent/result records, guardian assessment | `python3 tools/kit.py --help`; e.g. `python3 tools/kit.py pulse --routine OPS --status ok --description "2 tasks done"` |
+| `tools/alarm.py` | Owner alerts with dedupe and daily cap, batched desk notice, owner commands (`!stop`, `!start`, `!yes N`), plan B exit codes | `python3 tools/alarm.py --help`; after configuring Discord, `python3 tools/alarm.py test` |
+| `tools/guardian.py` | Hourly watchdog for GitHub Actions, independent of the agents: pulses (is the business alive?), constitution integrity, revenue cap, plan B issues | `.github/workflows/guardian.yml`, enabled with the `GUARDIAN_ENABLED` variable (setup step 5) |
+| `constitution/` | Constitution template and `limits.json` (owner, timezone, routines, revenue cap); owner-only | Fill the `[BRACKETED]` fields; `python3 tools/kit.py state check` validates `limits.json` |
+| `processes/` | Desk, escalation, tasks with leases, resilience, change management, business development | Start with `processes/DESK.md` and `examples/desk-item.md` |
+| `routines/` | Shift prompts for OPS, BIZ and FIN plus the permanent-session pattern | `routines/README.md` (wake message and example schedule) |
+| `docs/` | Claude Code platform notes (routines, limits, terms) and suggested departments | `docs/claude-platform.md` |
+| Tests and CI | Standard-library unit tests, a basic no-personal-data check, state and example validation | `python3 -m unittest discover -s tools/tests -v`; `.github/workflows/ci.yml` |
 
 Experiments are run under written stop conditions (`processes/BUSINESS_DEVELOPMENT.md`): each one
 states in advance when it is ended, so failures stay cheap.
@@ -111,9 +160,9 @@ Exit codes of `kit.py`: 0 OK, 1 validation error, 2 configuration or network err
 
 - **Inbound only.** No cold outreach, no spam, no bought lists.
 - **AI disclosure.** Never pretend to be human; label AI content where law or platform terms require.
-- **No customers' personal data on consumer plans.** Keep customer data with the customer or the payment
-  processor; a support channel that touches personal data needs commercial terms and a data processing
-  agreement.
+- **No customers' personal data in agent sessions.** Keep customer data with the customer or the payment
+  processor, not in the repo, issues or prompts. Consumer plans have no data processing agreement; a
+  support channel that touches personal data needs commercial terms and a DPA.
 - **Money only through a human.** Agents have no card or bank access. Spending without a desk item is 0.
 - **Terms of service.** Routines are a feature of your plan: do not share your account with anyone, and
   do not route customers through your personal subscription. Customer-facing AI needs an API key under
@@ -144,6 +193,19 @@ Exit codes of `kit.py`: 0 OK, 1 validation error, 2 configuration or network err
 - Tested with the standard-library test suite only; the Discord and `gh` integrations are exercised
   against fakes, not live services.
 
+## Roadmap and known gaps
+
+Version 0.1 is the first public cut. Known gaps, in no promised order:
+
+- no packaged release or installer: you copy the repository and edit files by hand;
+- the emergency channel supports Discord only;
+- no country-specific tax, invoicing or consumer-law modules (by design they would be optional);
+- the permanent-session pattern and the platform notes depend on a research-preview feature and need
+  re-checking as Claude Code routines change;
+- the no-personal-data test catches only generic patterns unless you set `KIT_FORBIDDEN`.
+
+Issues and pull requests that close these gaps without adding runtime dependencies are welcome.
+
 ## Repository layout
 
 ```
@@ -151,7 +213,7 @@ constitution/   template constitution + limits.json (owner-only)
 processes/      DESK, ESCALATION, TASKS, RESILIENCE, CHANGE, BUSINESS_DEVELOPMENT
 routines/       shift prompts (OPS, BIZ, FIN) + permanent-session pattern
 docs/           platform notes, suggested departments
-examples/       a fictional desk item
+examples/       fictional desk items (one complete, one deliberately incomplete)
 tools/          kit.py, alarm.py, guardian.py, labels.json, tests/
 .github/        CI and guardian workflows
 ```
@@ -167,10 +229,16 @@ tools/          kit.py, alarm.py, guardian.py, labels.json, tests/
 
 ## Contributing, security, license
 
-See `CONTRIBUTING.md`, `SECURITY.md` and `LICENSE` (MIT).
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
+- Security: report vulnerabilities privately as described in [SECURITY.md](SECURITY.md); please do not
+  open a public issue.
+- License: [MIT](LICENSE).
 
-This is an independent community project. "Claude" and "Claude Code" are products of their respective
-owner; this kit is not affiliated with, endorsed or sponsored by them.
+## Trademarks
+
+This is an independent community project. **Not affiliated with Anthropic**, and not endorsed or
+sponsored by it. "Claude" and "Claude Code" are trademarks of Anthropic; "for Claude Code" is used only
+descriptively, to say which tool the kit is meant to be used with. The project uses no Anthropic logos.
 
 ---
 An experiment by NobleCode, run with the participation of AI.
