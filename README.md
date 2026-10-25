@@ -148,7 +148,7 @@ Prerequisites: a GitHub account, Python 3.10+, and a Claude plan that includes C
 | `constitution/` | Constitution template and `limits.json` (owner, timezone, routines, revenue cap); owner-only | Fill the `[BRACKETED]` fields; `python3 tools/kit.py state check` validates `limits.json` |
 | `processes/` | Desk, escalation, tasks with leases, resilience, change management, business development | Start with `processes/DESK.md` and `examples/desk-item.md` |
 | `routines/` | Shift prompts for OPS, BIZ and FIN plus the permanent-session pattern | `routines/README.md` (wake message and example schedule) |
-| `docs/` | Walkthrough of a business day, Claude Code platform notes (routines, limits, terms) and suggested departments | `docs/how-it-works.md`, then `docs/claude-platform.md` |
+| `docs/` | Walkthrough of a business day, Claude Code platform notes (routines, limits, terms) and suggested departments | [`docs/how-it-works.md`](docs/how-it-works.md), then [`docs/claude-platform.md`](docs/claude-platform.md) |
 | Tests and CI | Standard-library unit tests, a basic no-personal-data check, state and example validation | `python3 -m unittest discover -s tools/tests -v`; `.github/workflows/ci.yml` |
 
 Experiments are run under written stop conditions (`processes/BUSINESS_DEVELOPMENT.md`): each one

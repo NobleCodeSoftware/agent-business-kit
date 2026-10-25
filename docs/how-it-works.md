@@ -112,11 +112,13 @@ yes or no without searching or calculating (`processes/DESK.md`).
 ### "No answer" means no
 
 `limits.json` sets `desk.default_deadline_days` (3) and `desk.no_answer: "decline"`;
-`kit.py state check` rejects any other value for `desk.no_answer`. When the due date
-passes without an answer, OPS closes the item with the label `result:expired` and the department does
-what the item's "If you decline or do not answer" section says. Waiting for the desk never blocks
-other work (`constitution/CONSTITUTION.md`, section 4). An absent owner slows spending; it does not
-stop operations (`processes/RESILIENCE.md`, failure mode 9).
+`kit.py state check` rejects any other value for `desk.no_answer`. Every item states its due date
+in its title line (`kit.py desk check` rejects an item without one); `kit.py` itself does not read
+`desk.default_deadline_days`. When the due date passes without an answer, OPS closes the item with
+the label `result:expired` and the department does what the item's "If you decline or do not
+answer" section says. Waiting for the desk never blocks other work
+(`constitution/CONSTITUTION.md`, section 4). An absent owner slows spending; it does not stop
+operations (`processes/RESILIENCE.md`, failure mode 9).
 
 ## The STOP switch
 
