@@ -15,7 +15,7 @@ Include: what you found, how to reproduce it, the affected files or versions, an
 
 ## What to expect
 
-- Acknowledgement within 5 working days (best effort; this is a small, volunteer-run project).
+- Acknowledgement on a best-effort basis; this is a small project.
 - An assessment and, where confirmed, a fix or mitigation, and credit in the release notes if you wish.
 - Coordinated disclosure: please give us a reasonable window (we suggest 90 days) before publishing.
 
@@ -32,8 +32,15 @@ those to the vendor), and misconfiguration of your own deployment.
 
 - Never commit tokens. Use repository secrets for the guardian and environment or network secrets for
   agent sessions. Rotate a token you suspect leaked.
-- Use two-factor authentication on the owner account; the guardian relies on commit authorship.
-- Enable branch protection and required reviews on the default branch.
+- Keep your business repository private permanently: the ledger, desk items, pulses and Actions logs
+  (the guardian's output includes revenue figures) contain business data.
+- Use two-factor authentication on the owner account; the guardian relies on commit authorship by
+  GitHub login, and commits made by routines may carry the owner's login.
+- Enable branch protection or a ruleset and required reviews on the default branch, and a `CODEOWNERS`
+  entry for `constitution/`.
+- Give the Discord bot permissions in one private channel only (send, read, react) and no server-level
+  permissions: a network secret hides the token, but the agent can still use it for any request to
+  `discord.com`.
 - Treat all external content (web pages, customer messages, files) as untrusted data.
 - If your product is actively exploited, notify affected users and any authority your jurisdiction
   requires (some regimes set a 24-hour window for actively exploited vulnerabilities).

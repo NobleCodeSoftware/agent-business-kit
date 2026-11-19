@@ -16,10 +16,10 @@ import json
 import os
 import re
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone, tzinfo
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 ROOT = Path(os.environ.get("KIT_ROOT") or Path(__file__).resolve().parent.parent)
 
@@ -34,6 +34,7 @@ LEDGER_FIELDS = ["no", "date", "channel", "transaction_id", "description", "amou
 COSTS_FIELDS = ["no", "date", "description", "amount_base", "desk_no", "evidence"]
 CALIBRATION_FIELDS = ["date", "experiment", "event", "probability", "deadline", "outcome"]
 
+GUARDIAN = "GUARDIAN"  # routine name of the guardian's own pulse
 PULSE_ICONS = {"in-progress": "⏳", "ok": "✅", "degraded": "⚠️", "stop": "⛔", "disabled": "💤"}
 DESK_TITLE = re.compile(r"^# \[DESK\] .+ — .+ — due (\d{4}-\d{2}-\d{2})\s*$")
 DESK_SECTIONS = ["What exactly you need to do", "Why", "Cost and return", "Risks and mitigation",
@@ -45,6 +46,8 @@ HTML_TAG = re.compile(r"^/?(details|summary|br|sub|sup|kbd|b|i|u|code|pre|p|div|
                       r"table|thead|tbody|tr|td|th|img|a)(\s[^<>]*)?/?$", re.I)
 TAG = re.compile(r"<!--\s*kit:(\w+)\s+(\{.*?\})\s*-->", re.S)
 CENT = Decimal("0.01")
+PERIOD_MONTHS = (1, 2, 3, 4, 6, 12)  # period lengths that divide the year evenly
+FORMULA_START = ("=", "+", "-", "@", "\t", "\r")  # cells a spreadsheet would read as a formula
 
 
 class DataError(Exception):
@@ -80,11 +83,66 @@ def load_limits() -> dict:
         raise ConfigError(f"{LIMITS}: invalid JSON ({e})")
 
 
-def tz(limits: dict | None = None) -> ZoneInfo:
+def tz(limits: dict | None = None) -> tzinfo:
+    """The business time zone. A configuration error in limits.json propagates (exit code 2).
+
+    An unknown zone name falls back to UTC here so that a reading tool never crashes; `state check`
+    reports such a name as an error (check_limits), so shifts do not act on shifted day boundaries.
+    """
+    name = (limits if limits is not None else load_limits()).get("timezone", "UTC")
+    if not isinstance(name, str):
+        raise ConfigError(f"{LIMITS}: timezone must be a zone name such as \"Europe/Berlin\"")
     try:
-        return ZoneInfo((limits or load_limits()).get("timezone", "UTC"))
-    except Exception:  # unknown zone or missing tz database: fall back to UTC
-        return ZoneInfo("UTC")
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):  # unknown zone, or no tz database on this system
+        return timezone.utc
+
+
+def valid_timezone(name) -> bool:
+    if not isinstance(name, str):
+        return False
+    try:
+        ZoneInfo(name)
+        return True
+    except (ZoneInfoNotFoundError, ValueError):
+        return name == "UTC"  # always valid, even without a tz database
+
+
+def owner_login(limits: dict) -> str:
+    """owner.github from limits.json; an empty or missing value is a configuration error.
+
+    An empty login would otherwise match commits without a linked GitHub account, or nothing at all.
+    """
+    owner = limits.get("owner")
+    owner = owner.get("github") if isinstance(owner, dict) else None
+    if not isinstance(owner, str) or not owner.strip():
+        raise ConfigError(f"{LIMITS}: owner.github must be the owner's GitHub login")
+    return owner.strip()
+
+
+def valid_period_months(months) -> bool:
+    return isinstance(months, int) and not isinstance(months, bool) and months in PERIOD_MONTHS
+
+
+def parse_day(text: str, field: str = "date") -> date:
+    try:
+        return date.fromisoformat(text)
+    except (ValueError, TypeError):
+        raise DataError(f"{field}: invalid date {text!r} (expected YYYY-MM-DD)")
+
+
+def read_text(path: str) -> str:
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        raise DataError(f"cannot read {path}: {e}")
+
+
+def read_json(path: str):
+    try:
+        return json.loads(read_text(path))
+    except json.JSONDecodeError as e:
+        raise DataError(f"{path}: invalid JSON ({e})")
 
 
 def today(limits: dict | None = None) -> date:
@@ -155,6 +213,12 @@ def check_limits(limits: dict) -> list[str]:
             node = node[key]
         return node
 
+    if not valid_timezone(limits.get("timezone", "UTC")):
+        errors.append(f"{LIMITS}: timezone {limits.get('timezone')!r} is not a known IANA zone (e.g. Europe/Berlin)")
+    try:
+        owner_login(limits)
+    except ConfigError as e:
+        errors.append(str(e))
     cap = get("revenue.period_limit")
     if cap is not None and (not isinstance(cap, (int, float)) or cap < 0):
         errors.append(f"{LIMITS}: revenue.period_limit must be a number >= 0 (0 disables the cap)")
@@ -162,6 +226,9 @@ def check_limits(limits: dict) -> list[str]:
     if thresholds is not None and (not isinstance(thresholds, list) or thresholds != sorted(thresholds)
                                    or not all(isinstance(p, (int, float)) and 0 < p <= 1 for p in thresholds)):
         errors.append(f"{LIMITS}: revenue.alert_thresholds must be an ascending list of numbers in (0, 1]")
+    revenue = limits.get("revenue")
+    if isinstance(revenue, dict) and not valid_period_months(revenue.get("period_months", 3)):
+        errors.append(f"{LIMITS}: revenue.period_months must be one of {', '.join(map(str, PERIOD_MONTHS))}")
     for path in ("alerts.max_per_day", "alerts.repeat_silence_h", "tasks.lease_h", "tasks.max_attempts"):
         value = get(path)
         if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 1):
@@ -188,6 +255,8 @@ def check_ledger(rows: list[dict]) -> list[str]:
                 errors.append(f"{where}: no should be {i}")
             date.fromisoformat(w["date"])
             amount, rate, base = number(w["amount"]), number(w["rate"], "rate"), number(w["amount_base"], "amount_base")
+            if rate <= 0:
+                errors.append(f"{where}: rate must be greater than 0")
             if not re.fullmatch(r"[A-Z]{3}", w["currency"]):
                 errors.append(f"{where}: currency must be an ISO code, e.g. EUR")
             if (amount * rate).quantize(CENT, ROUND_HALF_UP) != base:
@@ -273,7 +342,9 @@ def revenue_status(day: date) -> dict | None:
     cap = Decimal(str(limits["revenue"]["period_limit"]))
     if cap == 0:
         return None
-    months = int(limits["revenue"].get("period_months", 3))
+    months = limits["revenue"].get("period_months", 3)
+    if not valid_period_months(months):
+        raise ConfigError(f"{LIMITS}: revenue.period_months must be one of {', '.join(map(str, PERIOD_MONTHS))}")
     period = period_of(day, months)
     try:
         total = sum((number(w["amount_base"]) for w in read_csv(LEDGER, LEDGER_FIELDS)
@@ -293,7 +364,7 @@ def revenue_status(day: date) -> dict | None:
 
 
 def cmd_cap(args) -> int:
-    day = date.fromisoformat(args.date) if args.date else today()
+    day = parse_day(args.date) if args.date else today()
     dump(revenue_status(day) or {"cap": "disabled"})
     return 0
 
@@ -304,21 +375,26 @@ def cmd_ledger_add(args) -> int:
         if (w["channel"], w["transaction_id"]) == (args.channel, args.transaction_id):
             print(f"Transaction already in the ledger (no {w['no']}) - nothing added.")
             return 0
-    day = date.fromisoformat(args.date) if args.date else today()
+    day = parse_day(args.date) if args.date else today()
     currency = args.currency.upper()
     base = load_limits().get("base_currency", "USD")
     if currency == base:
         rate = Decimal("1")
     elif args.rate:
         rate = number(args.rate, "rate")
+        if rate <= 0:
+            raise DataError(f"rate: must be greater than 0, got {args.rate!r}")
     else:
         raise DataError(f"currency {currency} differs from base currency {base}: pass --rate "
                         "(take the rate from your accountant's source; the tool never guesses)")
     amount = number(args.amount.replace(",", "."))
     if args.correction_of and not any(w["no"] == args.correction_of for w in rows):
         raise DataError(f"correction_of: no entry {args.correction_of}")
+    description = args.description
+    if description.startswith(FORMULA_START):  # keep it text when the CSV is opened in a spreadsheet
+        description = "'" + description
     entry = {"no": str(len(rows) + 1), "date": str(day), "channel": args.channel,
-             "transaction_id": args.transaction_id, "description": args.description, "amount": str(amount),
+             "transaction_id": args.transaction_id, "description": description, "amount": str(amount),
              "currency": currency, "rate": str(rate),
              "amount_base": str((amount * rate).quantize(CENT, ROUND_HALF_UP)),
              "correction_of": args.correction_of or ""}
@@ -407,10 +483,15 @@ def assess_task(comments: list, now: datetime, max_attempts: int) -> dict:
 
 def cmd_tasks_assess(args) -> int:
     """Input: JSON list of {"number": N, "comments": [text | {"body": text}, ...]}."""
-    tasks = json.loads(Path(args.file).read_text(encoding="utf-8"))
+    tasks = read_json(args.file)
+    if not isinstance(tasks, list) or not all(isinstance(t, dict) and "number" in t for t in tasks):
+        raise DataError(f'{args.file}: expected a JSON list of {{"number": N, "comments": [...]}}')
     max_attempts = load_limits()["tasks"]["max_attempts"]
     now = parse_time(args.now) if args.now else now_utc()
-    dump([{"number": t["number"]} | assess_task(t.get("comments", []), now, max_attempts) for t in tasks])
+    try:
+        dump([{"number": t["number"]} | assess_task(t.get("comments") or [], now, max_attempts) for t in tasks])
+    except (KeyError, TypeError, ValueError, AttributeError) as e:
+        raise DataError(f"{args.file}: invalid task or lease data ({e})")
     return 0
 
 
@@ -442,7 +523,8 @@ def check_desk(text: str, day: date) -> list[str]:
         problems.append("first line must read: # [DESK] <action> — <amount> — due YYYY-MM-DD")
     elif date.fromisoformat(m.group(1)) < day:
         problems.append(f"due date {m.group(1)} has passed")
-    if not re.search(r"\*\*Urgency:\*\*\s*(normal|urgent)", text):
+    # One value only: the template's "<normal|urgent>" (or "normal | urgent") does not count.
+    if not re.search(r"\*\*Urgency:\*\*\s*(normal|urgent)\b(?!\s*\|)", text):
         problems.append("missing line **Urgency:** normal|urgent")
     heads = list(re.finditer(r"^## (.+)$", text, re.M))
     bodies = {}
@@ -461,7 +543,7 @@ def check_desk(text: str, day: date) -> list[str]:
 
 
 def cmd_desk_check(args) -> int:
-    problems = check_desk(Path(args.file).read_text(encoding="utf-8"), today())
+    problems = check_desk(read_text(args.file), today())
     if problems:
         print("Item INCOMPLETE - do not publish:")
         for p in problems:
@@ -474,24 +556,42 @@ def cmd_desk_check(args) -> int:
 # ------------------------------------------------------------------ guardian
 
 def assess_guardian(pulses: list[dict], constitution_commits: list[dict], limits: dict,
-                    now: datetime, stop: bool, cap: dict | None) -> dict:
-    """Pure assessment for the guardian (GitHub Actions). Returns alerts and warnings."""
-    alerts, warnings = [], []
-    owner = limits.get("owner", {}).get("github")
+                    now: datetime, stop: bool, cap: dict | None, history_complete: bool = True) -> dict:
+    """Pure assessment for the guardian (GitHub Actions). Returns alerts and warnings.
 
-    # 1. constitution/: every commit before the owner's latest commit must be by the owner.
+    constitution_commits is the history of constitution/, newest first (as the GitHub API lists it).
+    history_complete is False when the caller stopped fetching before reaching either the owner's
+    latest commit or the start of the history.
+    pulses are type:pulse issues, open or closed; an issue may carry "number", "state" and "createdAt".
+    """
+    alerts, warnings = [], []
+    owner = owner_login(limits)
+    security_title = "constitution/ changed without the owner"
+    clear_hint = ("Agents may not change constitution/. Review these commits. The alert clears once the "
+                  f"owner ({owner}) commits to constitution/ after the review: that commit approves the "
+                  "current state. To undo the changes, the owner reverts them (a revert by anyone else "
+                  "is itself a foreign commit); to keep them, the owner commits any change there.")
+
+    # 1. constitution/: the owner's latest commit approves the state; every newer commit must be by the owner.
     authors = [((c.get("author") or {}).get("login"), c.get("sha", "")[:7]) for c in constitution_commits]
     owner_idx = [i for i, (login, _) in enumerate(authors) if login == owner]
     if not authors:
         warnings.append("No history for constitution/ - integrity not checked")
+    elif not owner_idx and not history_complete:
+        # The owner's latest commit lies beyond the fetched window (or does not exist): treat every
+        # fetched commit as unapproved rather than downgrading to "not approved".
+        alerts.append({"code": "SECURITY", "title": security_title,
+                       "body": f"None of the latest {len(authors)} commits in constitution/ is by {owner}; "
+                               f"newest: {', '.join(sha for _, sha in authors[:10])}. " + clear_hint})
     elif not owner_idx:
         warnings.append("Constitution not approved: no commit by the owner in constitution/")
     else:
-        foreign = [sha for login, sha in authors[:max(owner_idx)] if login != owner]
+        newest_owner = owner_idx[0]  # newest first, so the lowest index is the owner's latest commit
+        foreign = [sha for login, sha in authors[:newest_owner] if login != owner]
         if foreign:
-            alerts.append({"code": "SECURITY", "title": "constitution/ changed without the owner",
-                           "body": f"Commits not by {owner} after approval: {', '.join(foreign)}. "
-                                   "Agents may not change constitution/. Review and revert."})
+            alerts.append({"code": "SECURITY", "title": security_title,
+                           "body": f"Commits not by {owner} after the owner's latest commit "
+                                   f"({authors[newest_owner][1]}): {', '.join(foreign)}. " + clear_hint})
 
     if stop:
         warnings.append("STOP active - skipping pulse and cap checks")
@@ -499,18 +599,36 @@ def assess_guardian(pulses: list[dict], constitution_commits: list[dict], limits
 
     # 2. Routine pulses.
     latest = {}
+    open_issue, closed_issue = set(), {}  # routines with an open pulse issue; routine -> closed issue number
+    created = {}  # routine -> creation time of its oldest pulse issue, when known
     for issue in pulses:
+        is_open = str(issue.get("state", "open")).lower() == "open"
         for name, data in tags(issue.get("body", "")):
             if name != "pulse" or not data.get("routine"):
                 continue
+            routine = data["routine"]
+            if is_open:
+                open_issue.add(routine)
+            else:
+                closed_issue.setdefault(routine, issue.get("number"))
+            try:
+                if issue.get("createdAt"):
+                    c = parse_time(str(issue["createdAt"]))
+                    created[routine] = min(created.get(routine, c), c)
+            except ValueError:
+                pass
             try:
                 t = parse_time(str(data.get("time")))
             except ValueError:
                 warnings.append(f"{issue.get('title', 'pulse')}: invalid time in pulse")
                 continue
-            prev = latest.get(data["routine"])
+            prev = latest.get(routine)
             if prev is None or t > parse_time(prev["time"]):
-                latest[data["routine"]] = data
+                latest[routine] = data
+    for routine, number in sorted(closed_issue.items()):
+        if routine not in open_issue:
+            ref = f" #{number}" if number else ""
+            warnings.append(f"{routine}: pulse issue{ref} is closed - reopen it")
     config = limits.get("routines", {})
     dead = []
     for routine, data in sorted(latest.items()):
@@ -521,24 +639,53 @@ def assess_guardian(pulses: list[dict], constitution_commits: list[dict], limits
         if data.get("status") == "in-progress" and age_h > rules.get("max_shift_h", 6):
             warnings.append(f"{routine}: shift in progress for {age_h:.1f} h - probably interrupted")
         if age_h > rules["max_silence_h"]:
-            dead.append(routine)
+            if routine != GUARDIAN:
+                dead.append(routine)
             alert_after = rules.get("alert_after_h")
             if alert_after is not None and age_h > alert_after:
-                alerts.append({"code": "OUTAGE", "title": f"Routine {routine} silent for {age_h:.0f} h",
-                               "body": f"Last pulse {routine}: {data['time']} ({data.get('status')}). "
+                # Stable title (no hours in it), so repeated hourly runs dedupe to one alert / one issue.
+                alerts.append({"code": "OUTAGE", "title": f"Routine {routine} silent",
+                               "body": f"No pulse for {age_h:.0f} h. Last pulse {routine}: {data['time']} "
+                                       f"({data.get('status')}). "
                                        "Check the Routines list and your subscription usage limit."})
             else:
                 warnings.append(f"{routine}: no pulse for {age_h:.1f} h (limit {rules['max_silence_h']} h)")
-    active = [r for r, d in latest.items() if d.get("status") not in ("disabled", "stop") and r in config]
+    # The guardian's own pulse is fresh whenever this runs, so it counts neither as active nor as dead;
+    # otherwise "all routines silent" could never be true.
+    active = [r for r, d in latest.items()
+              if d.get("status") not in ("disabled", "stop") and r in config and r != GUARDIAN]
+    # Configured routines with no pulse at all (never ran, or their pulse issue was deleted). A routine
+    # with alert_after_h raises an OUTAGE once another active routine has had a pulse issue for longer
+    # than that: the business is demonstrably running without it. On a fresh install (no other routine
+    # reporting yet) this stays a warning, so setting up the routines one by one raises no alert.
+    # The guardian's own pulse issue is never the anchor: it only shows that the guardian runs, not
+    # that the business does, so a lone OPS that never pulsed stays a warning however long the guardian
+    # has been reporting.
+    for routine, rules in sorted(config.items()):
+        if routine == GUARDIAN or routine in latest:
+            continue
+        alert_after = rules.get("alert_after_h")
+        since = [(created[r], r) for r in active if r in created]
+        if alert_after is not None and since and (now - min(since)[0]).total_seconds() / 3600 > alert_after:
+            t, other = min(since)
+            alerts.append({"code": "OUTAGE", "title": f"Routine {routine} silent",
+                           "body": f"No pulse issue for {routine}, while {other} has been reporting since "
+                                   f"{iso(t)}. Check that the routine exists in the Routines list and "
+                                   f"that it updates its \"Pulse: {routine}\" issue."})
+        else:
+            warnings.append(f"no pulse issue for {routine}")
     if len(active) > 1 and set(active) <= set(dead):
         alerts.append({"code": "OUTAGE", "title": "All routines silent",
                        "body": f"No pulse from: {', '.join(sorted(active))}. The business is standing still."})
 
     # 3. Revenue cap (optional).
+    # The highest configured threshold is the alert; lower ones are warnings in the guardian's pulse.
+    thresholds = limits.get("revenue", {}).get("alert_thresholds") or []
     if cap and cap.get("threshold") is not None:
-        if cap["threshold"] >= 0.95:
-            alerts.append({"code": "CAP", "title": f"Revenue {cap['period']}: {cap['percent']}% of cap",
-                           "body": f"Revenue {cap['revenue']} of {cap['limit']}. "
+        if thresholds and cap["threshold"] >= max(thresholds):
+            # Stable title (no percentage in it), so each new sale does not repeat the alert.
+            alerts.append({"code": "CAP", "title": f"Revenue cap {cap['period']} reached",
+                           "body": f"Revenue {cap['revenue']} of {cap['limit']} ({cap['percent']}%). "
                                    "Decision needed: change legal form or pause sales."})
         else:
             warnings.append(f"Revenue cap {cap['period']}: {cap['percent']}%")
@@ -547,8 +694,8 @@ def assess_guardian(pulses: list[dict], constitution_commits: list[dict], limits
 
 def cmd_guardian(args) -> int:
     limits = load_limits()
-    pulses = json.loads(Path(args.pulses).read_text(encoding="utf-8")) if args.pulses else []
-    commits = json.loads(Path(args.constitution_commits).read_text(encoding="utf-8")) if args.constitution_commits else []
+    pulses = read_json(args.pulses) if args.pulses else []
+    commits = read_json(args.constitution_commits) if args.constitution_commits else []
     now = parse_time(args.now) if args.now else now_utc()
     try:
         cap = revenue_status(now.astimezone(tz(limits)).date())

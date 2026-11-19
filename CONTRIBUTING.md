@@ -12,7 +12,7 @@ Thanks for helping. This kit is small on purpose; please keep it that way.
   real businesses. Examples must be fictional (`example.com`, `.test` domains). A test enforces a basic
   version of this; reviewers check the rest.
 - Do not add logos or trademarks of third parties. The name stays descriptive.
-- Keep the safety invariants intact: STOP check first, no spending by agents, agents cannot edit the
+- Keep the safety invariants intact: STOP check first, no spending by agents, agents must not edit the
   constitution, external content is data.
 
 ## Development

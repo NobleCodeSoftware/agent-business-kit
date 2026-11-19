@@ -5,9 +5,13 @@
 > This file is a starting point, not legal advice.
 >
 > **Status:** draft, awaiting the owner's approval. **Changes:** only the owner. Agents may propose
-> changes through the desk, but must never edit anything in `constitution/`. The guardian
-> (`.github/workflows/guardian.yml`) raises a `SECURITY` alert for every commit in this directory that
-> was not made by the owner named in `limits.json`.
+> changes through the desk, but must never edit anything in `constitution/`. This is a rule enforced
+> by the agents' prompts, not a technical barrier. The guardian (`.github/workflows/guardian.yml`)
+> checks it by GitHub author login: until the owner named in `limits.json` has committed here, it only
+> warns that the constitution is not approved; after that, any commit by another login after the
+> owner's latest commit here raises a `SECURITY` alert until the owner reviews it and commits here
+> again. Commits made by routines may carry the owner's login, so also protect this directory with
+> `CODEOWNERS` and a ruleset or branch protection, and review every change yourself.
 
 ## 1. What this business is
 

@@ -8,15 +8,15 @@ says so.
 ## The moving parts
 
 - **The owner** decides, pays and signs. They answer desk items with yes or no and can stop everything.
-- **Three scheduled routines** (OPS, BIZ, FIN) wake permanent Claude Code sessions with a short "new
-  shift" message (`routines/README.md`). Each session re-reads its prompt from the repo
-  (`routines/OPS.md`, `routines/BIZ.md`, `routines/FIN.md`) and runs it.
+- **Three scheduled routines** (OPS, BIZ, FIN). Every run starts a fresh Claude Code cloud session with
+  a fresh clone of the repositories attached to the routine (`routines/README.md`). The session runs
+  its department prompt (`routines/OPS.md`, `routines/BIZ.md`, `routines/FIN.md`).
 - **The guardian** is a GitHub Actions workflow (`.github/workflows/guardian.yml`) that runs
   `tools/guardian.py` every hour. It uses no AI.
 - **State** lives in the repo and in GitHub issues: tasks, desk items, incidents, pulses, experiments
   (`processes/TASKS.md`, `processes/RESILIENCE.md`, `processes/BUSINESS_DEVELOPMENT.md`). No session is expected to remember anything.
 - **Rules** sit in `constitution/CONSTITUTION.md` and the numbers in `constitution/limits.json`.
-  Agents may not change either.
+  Agents may not change either; the prompts enforce this and the guardian checks commit authors.
 
 ## A day of scheduled shifts
 
@@ -41,9 +41,12 @@ schedule within the bounds of `limits.json`; anything beyond them goes to the de
 All three prompts share the same invariants:
 
 1. Make sure the business repo is cloned; if that fails, end the shift.
-2. Check STOP: `python3 tools/kit.py stop` (exit code 3 means STOP is active) and, for OPS and BIZ,
-   `python3 tools/alarm.py commands` (field `stop`). If STOP is active, write a pulse with status
-   `stop` and end without any external action.
+2. Check STOP: `python3 tools/kit.py stop` (exit code 3 means STOP is active) and
+   `python3 tools/alarm.py commands` (field `stop_state`). If either says STOP is active, write a
+   pulse with status `stop` and end without any external action. `not_configured` (exit code 2, no
+   Discord bot set up) leaves `kit.py stop` as the only check. `unknown` (exit code 3), or any other
+   failure of `alarm.py commands`, ends the shift the same way, but with a `degraded` pulse that
+   carries `stop_reason`.
 3. Validate state with `python3 tools/kit.py state check`. It checks `limits.json`, the sales ledger
    (`finance/ledger.csv`), the cost log (`finance/costs.csv`) and the forecast log
    (`knowledge/calibration.csv`). If it fails, the shift takes no external actions, opens a
@@ -55,8 +58,9 @@ All three prompts share the same invariants:
 
 The shift procedure in `routines/OPS.md`:
 
-1. **Owner commands.** Read `!stop`, `!start`, `!yes N`, `!no N` from the alert channel, apply them,
-   and acknowledge each with `python3 tools/alarm.py ack --id <id>`.
+1. **Owner commands.** Read `!stop`, `!start`, `!status`, `!yes N`, `!no N` from the alert channel,
+   apply them (`!status` is answered with `python3 tools/alarm.py status`, which does not count
+   toward the daily alert cap), and acknowledge each with `python3 tools/alarm.py ack --id <id>`.
 2. **Health.** Read the BIZ, FIN and GUARDIAN pulses. A stale pulse is treated as an incident.
 3. **Leases.** Build a JSON list of `state:in-progress` tasks with their comments and run
    `python3 tools/kit.py tasks assess <file>`. For each task the tool answers `leave`,
@@ -82,7 +86,9 @@ records and a weekly report issue. On the last day of the month: a strategy memo
 Record new sales with `python3 tools/kit.py ledger add` (a repeated channel and transaction id is
 skipped, so reruns do not double-count), record approved costs with their desk item number, check the
 optional revenue cap with `python3 tools/kit.py cap`, audit the OPS report against source data and
-check the reserve rule. FIN never moves money.
+check the reserve rule. At the highest cap threshold FIN tells BIZ; the `CAP` alert itself comes only
+from the guardian, so the owner gets one alert (FIN opens an `urgent` issue instead only when the
+guardian's pulse is missing or stale). FIN never moves money.
 
 ## How a desk item flows
 
@@ -126,7 +132,12 @@ Three ways to stop, listed in `constitution/CONSTITUTION.md`, section 6:
 
 1. Turn the routines off in the Claude Code UI. Immediate and needs no agent.
 2. Send `!stop` in the alert channel from the owner's account. Read only at the start of a shift, so
-   the delay is up to the gap between shifts.
+   the delay is up to the gap between shifts. The latest owner `!stop` or `!start` decides, however
+   far back it is; if it cannot be found within the last 1000 messages or the channel cannot be read,
+   the state is `unknown` and shifts stop as for an active STOP, with the reason in a `degraded`
+   pulse. This also hits an owner who has never sent `!stop` or `!start` once the channel holds more
+   than 1000 messages: send `!start` to resume. For a longer pause prefer the file below, which does
+   not depend on the chat history.
 3. Create the file `constitution/STOP` (any content). `kit.py stop` then exits with code 3.
 
 While STOP is active, shifts write a `stop` pulse and do nothing else, and the guardian skips its pulse
@@ -141,7 +152,8 @@ The owner is alerted only for a closed list of codes: `SECURITY`, `LEGAL`, `CUST
 - Alerts are sent with `python3 tools/alarm.py send --code ... --title ... --body ...` through a
   Discord bot (or a send-only webhook, which carries alerts only: owner commands such as `!stop` need
   the bot).
-- The same code and title are not repeated within `alerts.repeat_silence_h` hours, and at most
+- The same code and title (an exact match of the alert's first line) are not repeated within
+  `alerts.repeat_silence_h` hours, and at most
   `alerts.max_per_day` alerts go out per day. `SECURITY` has no cap.
 - **Plan B:** exit code 2 (Discord not configured or failing) or 4 (daily cap reached) means the agent
   opens an issue labelled `type:incident` and `urgent` instead.
@@ -154,18 +166,37 @@ when the agents have hit a usage limit. It is off until you set the repository v
 `GUARDIAN_ENABLED` to `true`. Each run:
 
 1. Creates any missing labels from `tools/labels.json`.
-2. Reads the open `type:pulse` issues and the commit history of `constitution/`.
-3. **Constitution check.** Once the owner (`owner.github` in `limits.json`) has committed to
-   `constitution/`, any later commit there by another author raises a `SECURITY` alert. With no owner
-   commit at all, it records a warning that the constitution is not approved.
+2. Reads the `type:pulse` issues, open and closed, and the commit history of `constitution/`
+   (newest first, 100 commits per page, until it reaches the owner's latest commit there; at most
+   1000 commits per run).
+3. **Constitution check.** The owner's (`owner.github` in `limits.json`) latest commit to
+   `constitution/` approves its state. Any newer commit there by another author raises a `SECURITY`
+   alert. An empty or missing `owner.github` is a configuration error: the run fails (exit code 2)
+   instead of matching commits by an empty login. A revert does not remove a commit from the
+   history, so the alert repeats until the owner has reviewed the change and committed to
+   `constitution/` again: the owner's own revert of the change, or any owner commit there if the
+   change is to stay. Older foreign commits, before that
+   approval, are not reported. With no owner commit at all, it records a warning that the
+   constitution is not approved. If 1000 commits are read without reaching an owner commit, it
+   raises a `SECURITY` alert rather than trusting the truncated window.
 4. **Pulse check.** For each routine it compares the latest pulse with `max_silence_h` in
-   `limits.json`. A silent OPS is a warning from `max_silence_h` and raises an `OUTAGE` alert after
-   `alert_after_h`; a silent BIZ or FIN is a warning for OPS. If more than one routine is active and
-   all of them are silent, it raises an `OUTAGE` alert. If a routine writes an `in-progress` pulse at
+   `limits.json`. A closed pulse issue is still read (and reported as closed), so closing it does not
+   hide the routine. A routine configured in `limits.json` with no pulse at all is a warning ("no
+   pulse issue for FIN"); to silence it, create the routine, remove it from `limits.json`, or have it
+   write a `disabled` pulse. A routine with `alert_after_h` (OPS) that has never pulsed raises an
+   `OUTAGE` alert once another active routine has had a pulse issue for longer than `alert_after_h`;
+   while nothing else reports yet (a fresh install, routines added one by one) it stays a warning.
+   The guardian's own pulse issue never counts as that other routine: it shows that the guardian
+   runs, not that the business does. A silent OPS is a warning from `max_silence_h` and raises an
+   `OUTAGE` alert after `alert_after_h`; a silent BIZ or FIN is a warning for OPS. If more than one routine is active and
+   all of them are silent, it raises an `OUTAGE` alert (the guardian's own pulse does not count).
+   Outage titles are stable ("Routine OPS silent"; the hours are in the body), so hourly runs do not
+   repeat the alert or open a new issue each time. If a routine writes an `in-progress` pulse at
    the start of a shift and it stays longer than `max_shift_h`, the shift is reported as probably
    interrupted (the bundled routine prompts write only `ok`, `degraded` or `stop`).
 5. **Revenue cap.** If `revenue.period_limit` is set, it warns at the lower `alert_thresholds` and
-   raises a `CAP` alert at 95%.
+   raises a `CAP` alert at the highest one (0.95 by default). It is the only sender of that alert;
+   its title ("Revenue cap 2026-P2 reached") is stable, so new sales do not repeat it.
 6. Sends alerts through `tools/alarm.py`; if that fails, it opens an `urgent` incident issue.
 7. Rewrites its own "Pulse: GUARDIAN" issue.
 
@@ -178,10 +209,11 @@ The guardian trusts GitHub author logins. Protect the owner account and the defa
 
 | Key | What it controls |
 |---|---|
-| `owner.github` | who may change `constitution/` (checked by the guardian) |
+| `owner.github` | who may change `constitution/` (checked by the guardian; must not be empty) |
+| `timezone` | IANA zone for day boundaries (daily alert cap, desk due dates, revenue periods); `state check` rejects unknown names |
 | `spending.without_desk` | spending allowed without a desk item (`state check` requires 0) |
-| `spending.reserve_percent_of_balance` | share of the balance kept out of experiments |
-| `revenue.*` | optional revenue cap, period length and alert thresholds |
+| `spending.reserve_percent_of_balance` | share of the balance kept out of experiments; read by the FIN prompt (reserve rule), no tool reads it |
+| `revenue.*` | optional revenue cap, period length (`period_months`: 1, 2, 3, 4, 6 or 12) and alert thresholds |
 | `alerts.*` | daily alert cap and repeat suppression |
 | `desk.*` | default deadline, what no answer means, notice frequency |
 | `tasks.lease_h`, `tasks.max_attempts` | lease length and attempts before a task is blocked |

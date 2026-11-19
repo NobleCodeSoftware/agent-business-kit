@@ -3,7 +3,8 @@
 
 Runs outside the Claude subscription, so it notices an outage even when the agents cannot work.
 1. Creates missing labels (tools/labels.json).
-2. Fetches routine pulses (issues labelled type:pulse) and the history of constitution/ via `gh`.
+2. Fetches routine pulses (issues labelled type:pulse, open and closed) and the history of
+   constitution/ via `gh`, back to the owner's latest commit there.
 3. Assesses state (kit.assess_guardian): pulses, constitution integrity, optional revenue cap.
 4. Sends alerts through Discord (alarm.py); if that fails, opens an `urgent` issue (plan B).
 5. Updates its own pulse issue "Pulse: GUARDIAN" (editing an issue body sends no notification).
@@ -19,6 +20,8 @@ import alarm
 import kit
 
 PULSE_TITLE = "Pulse: GUARDIAN"
+PAGE_SIZE = 100
+MAX_PAGES = 10  # constitution/ history window: up to 1000 commits per run
 
 
 def gh(*args: str) -> str:
@@ -34,6 +37,22 @@ def ensure_labels(repo: str) -> None:
     for e in wanted:
         if e["name"] not in existing:
             gh("label", "create", e["name"], "--repo", repo, "--color", e["color"], "--description", e["description"])
+
+
+def constitution_history(repo: str, owner: str) -> tuple[list[dict], bool]:
+    """Commits touching constitution/, newest first, up to and including the owner's latest one.
+
+    Returns (commits, complete). complete is False when MAX_PAGES pages were read without reaching
+    an owner commit or the end of the history; kit.assess_guardian then raises a SECURITY alert
+    instead of trusting the truncated window.
+    """
+    commits = []
+    for page in range(1, MAX_PAGES + 1):
+        batch = json.loads(gh("api", f"repos/{repo}/commits?path=constitution&per_page={PAGE_SIZE}&page={page}"))
+        commits += batch
+        if len(batch) < PAGE_SIZE or any((c.get("author") or {}).get("login") == owner for c in batch):
+            return commits, True
+    return commits, False
 
 
 def plan_b(repo: str, a: dict, reason: str) -> None:
@@ -58,19 +77,30 @@ def pulse_text(result: dict) -> str:
 
 
 def main() -> int:
+    try:
+        return run()
+    except kit.ConfigError as e:  # e.g. limits.json missing or owner.github empty: fail the job visibly
+        print(f"configuration error: {e}", file=sys.stderr)
+        return 2
+
+
+def run() -> int:
     repo = os.environ["GITHUB_REPOSITORY"]
-    ensure_labels(repo)
-    pulses = json.loads(gh("issue", "list", "--repo", repo, "--label", "type:pulse", "--state", "open",
-                           "--json", "number,title,body", "--limit", "50"))
-    commits = json.loads(gh("api", f"repos/{repo}/commits?path=constitution&per_page=100"))
     limits = kit.load_limits()
+    owner = kit.owner_login(limits)  # before any history is read: an empty login would match wrongly
+    ensure_labels(repo)
+    # Closed pulse issues are read too: closing one must not hide a routine from the silence checks.
+    pulses = json.loads(gh("issue", "list", "--repo", repo, "--label", "type:pulse", "--state", "all",
+                           "--json", "number,title,body,state,createdAt", "--limit", "100"))
+    commits, complete = constitution_history(repo, owner)
     now = kit.now_utc()
     try:
         cap = kit.revenue_status(now.astimezone(kit.tz(limits)).date())
     except (kit.DataError, KeyError, ValueError) as e:
         cap = None
         print(f"warning: revenue cap not computed ({e})", file=sys.stderr)
-    result = kit.assess_guardian(pulses, commits, limits, now, (kit.ROOT / kit.STOP_FILE).exists(), cap)
+    result = kit.assess_guardian(pulses, commits, limits, now, (kit.ROOT / kit.STOP_FILE).exists(), cap,
+                                 history_complete=complete)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
     cfg = alarm.configuration()
@@ -84,7 +114,7 @@ def main() -> int:
             plan_b(repo, a, message)
 
     text = pulse_text(result)
-    own = [p for p in pulses if p["title"] == PULSE_TITLE]
+    own = [p for p in pulses if p["title"] == PULSE_TITLE and str(p.get("state", "open")).lower() == "open"]
     if own:
         gh("issue", "edit", str(own[0]["number"]), "--repo", repo, "--body", text)
     else:

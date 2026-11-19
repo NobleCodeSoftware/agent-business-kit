@@ -8,7 +8,8 @@ should not have to search, calculate or write anything.** They get a ready packa
 
 - Issues labelled `type:desk`. Filter: `is:open label:type:desk`.
 - OPS announces new items in one batched chat message, at most once a day.
-- Urgent items (deadline under 48 h) go out immediately as an alert (`processes/ESCALATION.md`).
+- Items with a deadline under 48 h on which revenue or compliance depends go out immediately as a
+  `DESK` alert (`processes/ESCALATION.md`).
 
 ## How the owner answers
 
@@ -34,7 +35,7 @@ No answer by the deadline means decline. OPS closes the item with the label `res
 ```markdown
 # [DESK] <action> — <amount or "0"> — due YYYY-MM-DD
 
-**Urgency:** normal | urgent    **Department:** <BIZ/OPS/...>    **Related:** <experiment / task>
+**Urgency:** <normal|urgent>    **Department:** <BIZ/OPS/...>    **Related:** <experiment / task>
 
 ## What exactly you need to do
 1. <step with a ready link>

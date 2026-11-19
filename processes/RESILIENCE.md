@@ -20,19 +20,23 @@ we ensure it, technically and commercially.
    the agent records an intent with an id; afterwards the result. A repeated shift first checks whether
    the action already happened, so there are no double publications.
 6. **Circuit breakers.** Three consecutive failures of the same action on the same channel switch that
-   channel off (`channel:paused`) until IT or OPS analyses it. Pace limits in `limits.json` (e.g.
-   publications per day) protect against a loop that spams.
+   channel off (`channel:paused`) until IT or OPS analyses it. Pace limits stated in `limits.json`
+   (e.g. publications per day) and enforced by the routine prompts guard against a loop that spams; no
+   tool counts publications.
 7. **Two keys.** Nothing goes public without QA review by an agent other than the author. Nothing
    financial happens without the owner.
 8. **Safe by default.** Missing data, contradictory data, corrupted state or legal uncertainty mean no
    external action. The agent records the problem and moves on.
 9. **One writer.** Every state file has one owning department. Others file a task or a PR to the owner.
-   Log files are append-only.
+   Log files are append-only. One exception: BIZ fills the empty `outcome` of a forecast in
+   `knowledge/calibration.csv` once its deadline passes; no other field of a logged forecast changes.
 10. **Degradation by priority.** When capacity (subscription limit) or time runs short, the order is:
     (1) security and legal, (2) customers and statutory deadlines, (3) revenue tasks, (4) growth,
     (5) research.
 11. **Mutual oversight.** OPS checks the BIZ and FIN pulses. FIN audits OPS reports against source data.
-    The guardian checks everyone and ensures nobody but the owner changes `constitution/`.
+    The guardian checks everyone and alerts when `constitution/` is changed by a GitHub login other
+   than the owner's after the owner's latest commit there (it cannot tell a routine's commit under the
+   owner's login from the owner's).
 12. **Reversibility.** Everything is in git. A change after which things start failing is undone with
     `git revert` without waiting for analysis. Analysis comes later.
 
@@ -65,8 +69,8 @@ we ensure it, technically and commercially.
 | 10 | Chat service down | exit code 2 from `alarm.py` | `urgent` issue | owner checks secrets |
 | 11 | GitHub unavailable | tool errors | the shift ends without external actions | next shift |
 | 12 | Corrupted state file | `kit.py state check` | writes to that file halted, incident | restore from git history |
-| 13 | Two shifts at once | PR or lease conflict | staggered schedules, retry after rebase | - |
-| 14 | Revenue ceiling approaching | FIN, thresholds in `limits.json` | BIZ slows sales at 85% | desk: change legal form |
-| 15 | Action loop (spam) | pace limits | hard limit in tools and `limits.json` | analysis and fix |
+| 13 | Two shifts at once | PR or lease conflict | staggered schedules reduce (do not prevent) double claims; retry after rebase | - |
+| 14 | Revenue ceiling approaching | FIN, thresholds in `limits.json` | BIZ slows sales at the lower thresholds | desk: change legal form |
+| 15 | Action loop (spam) | pace limits | limit stated in `limits.json`, enforced by the routine prompts (no tool counts publications) | analysis and fix |
 | 16 | A department keeps failing | 3 failed shifts in a row | department `degraded`, others continue | IT and OPS: post-mortem |
 | 17 | Model behaviour drift | weekly QA sample | - | adjust prompts and processes |

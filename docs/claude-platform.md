@@ -11,8 +11,9 @@ any number or clause.
 
 ## Routines
 
-- Each run is a **new session with a fresh clone** of the repo's default branch. State must live in the
-  repo or in issues.
+- Each scheduled run starts a **fresh cloud session with a fresh clone** of the repositories attached
+  to the routine (default branch). Nothing carries over between runs: state must live in the repo or in
+  issues.
 - Minimum interval between scheduled runs: **one hour**; more frequent cron expressions are rejected
   (docs, 2026-10-15). Hourly caps listed there: scheduled runs 100/h per account; "Run now" + API fires +
   re-armed one-off runs 30/h per routine; "Run now" 100/h and API fires 100/h per account; GitHub events
@@ -39,15 +40,16 @@ any number or clause.
   the prompt invariants (see `routines/OPS.md`, invariant 3) and keep private connectors disconnected.
 - Kill switch: the on/off switch on each routine's page. On Team/Enterprise an Owner can also disable
   routines for the whole organization.
-- Routines belong to your individual account; commits, PRs and connector actions appear as you.
+- Routines belong to your individual account; commits, PRs and connector actions appear as you. A
+  check by author login (such as the guardian's constitution check) therefore cannot tell a routine's
+  commit from yours; protect `constitution/` with `CODEOWNERS` and a ruleset or branch protection.
 
-## Permanent sessions per department
+## One routine per department
 
-See `routines/README.md`. In short: a session with the repo attached, woken by a routine's thin message.
-Routines are created in the web UI, Desktop app or CLI (`/schedule`); the API trigger only fires an
-existing routine (and is a beta endpoint, `experimental-cc-routine-2026-04-01`), it does not create one.
-Repositories are attached in the routine itself. Whether the permanent-session pattern is still needed
-depends on your account; verify there.
+See `routines/README.md`. In short: one routine per department, with the business repo attached in the
+routine itself; every run is a fresh session that runs the department prompt. Routines are created in
+the web UI, Desktop app or CLI (`/schedule`); the API trigger only fires an existing routine (and is a
+beta endpoint, `experimental-cc-routine-2026-04-01`), it does not create one.
 
 ## Usage windows
 
@@ -58,17 +60,19 @@ If the account is also used interactively, schedule routines so they do not comp
 Checked 2026-10-15; not legal advice. If your use is commercial or customer-facing, ask Anthropic sales or
 a lawyer.
 
-- The Consumer Terms (Free, Pro, Max) forbid accessing the services "through automated or non-human
-  means, whether through a bot, script, or otherwise" except via an API key or where Anthropic explicitly
-  permits it (confirmed). Routines and `claude setup-token` (one-year token for CI and scripts, Pro, Max,
-  Team or Enterprise) are documented by Anthropic. Headless `claude -p` is a documented CLI mode, but its
-  status under the terms was not checked in detail.
-- **Caveat on scale and purpose.** Anthropic's legal page says advertised Pro/Max limits "assume ordinary,
-  individual usage" of Claude Code and the Agent SDK, and that developers building products or services on
-  Claude should use API-key authentication. Running an autonomous multi-department business on one personal
-  subscription may exceed "ordinary, individual usage"; this is a grey area that Anthropic can enforce
-  without notice. Use an API key or a Team/Enterprise plan if in doubt.
-- **Do not share your account with other people** (Consumer Terms forbid sharing login or credentials).
+- The Consumer Terms (Free, Pro, Max; https://www.anthropic.com/legal/consumer-terms) forbid
+  accessing the services "through automated or non-human means, whether through a bot, script, or
+  otherwise" except via an API key or where Anthropic explicitly permits it (confirmed). Routines and
+  `claude setup-token` (one-year token for CI and scripts, Pro, Max, Team or Enterprise) are documented
+  by Anthropic. Headless `claude -p` is a documented CLI mode, but its status under the terms was not
+  checked in detail.
+- **Caveat on scale and purpose.** Anthropic's documentation says the advertised Pro/Max limits are
+  meant for individual use of Claude Code and the Agent SDK, and that developers building products or
+  services on Claude should use API-key authentication. Running an autonomous multi-department business
+  on one personal subscription may go beyond individual use; this is a grey area that Anthropic can
+  enforce without notice. Use an API key or a Team/Enterprise plan if in doubt.
+- **Do not share your account with other people** (the Consumer Terms forbid sharing login or
+  credentials: https://www.anthropic.com/legal/consumer-terms).
   Customers must never talk to Claude through your personal subscription: Anthropic does not permit routing
   requests through Free/Pro/Max credentials on behalf of users. AI features facing customers (e.g. a
   support chat) need an API key under the Commercial Terms, not a subscription.

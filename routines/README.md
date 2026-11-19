@@ -1,31 +1,32 @@
-# Routines and permanent department sessions
+# Routines per department
 
 ## The pattern
 
-Every department that runs on a schedule (OPS, BIZ, FIN) gets a **permanent session** in the cloud with
-the business repository attached and its own branch (for example `ops/shift`, `biz/shift`, `fin/shift`).
-A scheduled routine **wakes that session** with a thin message such as "new shift".
+Every department that runs on a schedule (OPS, BIZ, FIN) gets its own **routine** with the business
+repository attached in the routine itself. Each scheduled run starts a **fresh cloud session** with a
+fresh clone of the repositories attached to the routine. Nothing carries over between runs: the session
+**does not rely on memory**, and business state is in the repo and in issues.
 
-Why: a routine created through an API may start a fresh session **without the repo and without GitHub
-tools**; adding a repo to such a routine may be possible only by hand in the web UI. A permanent session
-created with a repo source has the repo, the GitHub tools (issues, PRs, merging) and session management,
-so it works without the owner.
+The real instructions live in the repo (`routines/<DEPT>.md`) and change through PRs with QA review.
+Replace the `[BRACKETED]` fields in your copy before the first run. The routine's prompt can then be
+either:
 
-The wake message is deliberately thin. It tells the session to sync its branch, re-read
-`routines/<DEPT>.md` from scratch and execute it fully. The real instructions live in the repo and change
-through PRs with QA review. The session **does not rely on memory**: business state is in the repo and in
-issues.
+- **the full file** (`routines/OPS.md` etc.). Its invariants then apply even if the repo cannot be
+  read. The prompt in the platform UI must stay identical to the file: changing a prompt means changing
+  the file (PR with QA review) and then updating the routine.
+- **a short prompt** that tells the session to read the file and execute it. The file is then the only
+  copy, so updating it is enough, but if the repo is unavailable the session has no instructions.
 
-Example wake message:
+Example short prompt:
 
-> New shift. Sync your branch with the default branch, re-read `routines/OPS.md` and execute it in full.
+> New shift. Read `routines/OPS.md` from the default branch of the attached business repository and
+> execute it in full.
 
 ## Hygiene
 
-- Session context grows; the platform compacts it on its own.
-- A session that stopped working (no pulse despite routine runs) is recreated by IT: create a new
-  permanent session from the same repo, point the routine at it, and let the old one be archived.
-- Keep a private inventory of session and routine ids outside the repository.
+- If a routine keeps producing no pulse despite runs, IT checks the routine (attached repositories,
+  connectors, environment, prompt) and fixes or recreates it.
+- Keep a private inventory of routine ids outside the repository.
 
 ## Schedule
 
@@ -38,6 +39,4 @@ schedule routines so they do not compete with that usage. The defaults in `const
 | BIZ | `BIZ.md` | `30 7 * * *` (Monday: full mode) | BIZ |
 | FIN | `FIN.md` | `30 20 * * *` | FIN |
 
-The prompt in the platform UI must be identical to the file. OPS reports any mismatch. Changing a prompt
-means changing the file (PR with QA review) and then updating the routine. OPS may change the schedule
-within the bounds of `constitution/limits.json`.
+OPS may change the schedule within the bounds of `constitution/limits.json`.
