@@ -17,7 +17,7 @@ Security problems: do not open an issue, follow SECURITY.md instead.
 - [ ] `tools/guardian.py` / `.github/workflows/guardian.yml`
 - [ ] CI (`.github/workflows/ci.yml`) or tests
 - [ ] A process in `processes/`
-- [ ] A routine prompt in `routines/` (OPS, BIZ, FIN)
+- [ ] A routine prompt in `routines/` (operations, strategy, finance)
 - [ ] Constitution template or `limits.json`
 - [ ] Documentation
 
