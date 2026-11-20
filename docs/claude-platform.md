@@ -37,7 +37,7 @@ any number or clause.
 - By default a routine gets all your connected connectors, and Claude may use every tool of an included
   connector, writes included, without asking. The docs say you can remove connectors per routine in the
   form (or with `/schedule update`): do that first. As defence in depth, keep a hard "do not use" rule in
-  the prompt invariants (see `routines/OPS.md`, invariant 3) and keep private connectors disconnected.
+  the prompt invariants (see `routines/operations.md`, invariant 3) and keep private connectors disconnected.
 - Kill switch: the on/off switch on each routine's page. On Team/Enterprise an Owner can also disable
   routines for the whole organization.
 - Routines belong to your individual account; commits, PRs and connector actions appear as you. A

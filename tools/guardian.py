@@ -72,7 +72,7 @@ def pulse_text(result: dict) -> str:
     if alerts:
         lines += ["", "#### Alerts"] + [f"- [{a['code']}] {a['title']}" for a in alerts]
     if warnings:
-        lines += ["", "#### Warnings (for OPS)"] + [f"- {w}" for w in warnings]
+        lines += ["", "#### Warnings (for operations)"] + [f"- {w}" for w in warnings]
     return "\n".join(lines)
 
 

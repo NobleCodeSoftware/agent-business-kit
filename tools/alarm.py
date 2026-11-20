@@ -64,7 +64,12 @@ def bot_mode(cfg: dict) -> bool:
 
 
 def commands_configured(cfg: dict) -> bool:
-    """Whether owner commands were set up at all. A webhook alone cannot read commands."""
+    """Whether owner commands were set up at all. A webhook alone cannot read commands.
+
+    Any bot variable counts, DISCORD_OWNER_ID included: a webhook plus an owner id is an unfinished
+    bot setup, so `commands` reports the STOP state as unknown (fail closed) instead of "not configured",
+    which would silently ignore a !stop the owner believes works.
+    """
     return bool(cfg["channel"] or cfg["owner"] or cfg["token"] or cfg.get("proxy"))
 
 

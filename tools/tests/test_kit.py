@@ -20,6 +20,10 @@ import kit  # noqa: E402
 LIMITS = json.loads((TOOLS.parent / "constitution/limits.json").read_text(encoding="utf-8"))
 LIMITS["owner"] = {"github": "owner"}
 LIMITS["revenue"]["period_limit"] = 1000
+OPERATIONS = LIMITS["routines"]["operations"]
+SILENT_H = OPERATIONS["alert_after_h"] + 1  # operations silent long enough for an OUTAGE alert
+QUIET_H = OPERATIONS["max_silence_h"] + 1  # past the warning threshold, not yet an outage
+ALERT_BUDGET = LIMITS["alerts"]["max_per_day"]
 
 
 def run(argv):
@@ -63,7 +67,7 @@ class TestStopAndState(Base):
         bad = json.loads(json.dumps(LIMITS))
         bad["spending"]["without_desk"] = 5
         bad["desk"]["no_answer"] = "approve"
-        bad["routines"]["OPS"]["max_silence_h"] = "x"
+        bad["routines"]["operations"]["max_silence_h"] = "x"
         errors = kit.check_limits(bad)
         self.assertEqual(len(errors), 3)
 
@@ -164,9 +168,9 @@ class TestLedgerAndCap(Base):
         self.assertEqual(self.add("--correction-of", "1", tid="r1", amount="-10")[0], 0)
 
     def test_cap_thresholds(self):
-        self.add(amount="720")
+        self.add(amount="820")
         status = kit.revenue_status(date(2026, 5, 10))
-        self.assertEqual((status["percent"], status["threshold"], status["remaining"]), (72.0, 0.7, "280.00"))
+        self.assertEqual((status["percent"], status["threshold"], status["remaining"]), (82.0, 0.8, "180.00"))
         self.assertEqual(kit.revenue_status(date(2026, 8, 1))["revenue"], "0.00")  # next period
 
     def test_cap_period_does_not_span_years(self):
@@ -202,12 +206,12 @@ class TestBrier(Base):
 class TestTasks(Base):
     def lease(self, hours, attempt=1):
         until = kit.iso(kit.now_utc() + timedelta(hours=hours))
-        return kit.tag("lease", {"shift": "OPS-1", "until": until, "attempt": attempt})
+        return kit.tag("lease", {"shift": "operations-1", "until": until, "attempt": attempt})
 
     def test_lease_command_roundtrip(self):
-        code, out, _ = run(["lease", "--shift", "OPS-1"])
+        code, out, _ = run(["lease", "--shift", "operations-1"])
         self.assertEqual(code, 0)
-        self.assertIn("2026-05-10T18:00:00Z", out)
+        self.assertIn(kit.iso(kit.now_utc() + timedelta(hours=LIMITS["tasks"]["lease_h"])), out)
         self.assertEqual(kit.tags(out)[0][0], "lease")
 
     def test_active_expired_blocked(self):
@@ -246,13 +250,13 @@ class TestTasks(Base):
     def test_intent_result_pulse(self):
         self.assertIn("kit:intent", run(["intent", "--id", "x", "--description", "d"])[1])
         self.assertIn("❌", run(["result", "--id", "x", "--status", "error"])[1])
-        out = run(["pulse", "--routine", "OPS", "--status", "ok", "--description", "fine"])[1]
-        self.assertEqual(kit.tags(out)[0][1]["routine"], "OPS")
+        out = run(["pulse", "--routine", "operations", "--status", "ok", "--description", "fine"])[1]
+        self.assertEqual(kit.tags(out)[0][1]["routine"], "operations")
 
 
 GOOD_DESK = """# [DESK] Register a domain — 12 USD — due 2026-05-20
 
-**Urgency:** normal    **Department:** BIZ
+**Urgency:** normal    **Department:** strategy
 
 ## What exactly you need to do
 1. Open <https://example.com/register> and buy `example-shop.test`.
@@ -323,76 +327,79 @@ class TestGuardian(Base):
                                    LIMITS, kit.now_utc(), stop, cap)
 
     def test_healthy(self):
-        r = self.assess([pulse_issue("OPS", 2), pulse_issue("BIZ", 5), pulse_issue("FIN", 5)])
+        r = self.assess([pulse_issue("operations", 2), pulse_issue("strategy", 5), pulse_issue("finance", 5)])
         self.assertEqual((r["alerts"], r["warnings"]), ([], []))
 
     def test_configured_routine_without_pulse_is_reported(self):
-        r = self.assess([pulse_issue("OPS", 2), pulse_issue("BIZ", 5)])
-        self.assertEqual((r["alerts"], r["warnings"]), ([], ["no pulse issue for FIN"]))
+        r = self.assess([pulse_issue("operations", 2), pulse_issue("strategy", 5)])
+        self.assertEqual((r["alerts"], r["warnings"]), ([], ["no pulse issue for finance"]))
         # Fresh install: nothing reports yet, so only warnings (the guardian's own pulse is not expected).
         r = self.assess([])
         self.assertEqual(r["alerts"], [])
-        self.assertEqual(sorted(r["warnings"]), ["no pulse issue for BIZ", "no pulse issue for FIN",
-                                                 "no pulse issue for OPS"])
+        self.assertEqual(sorted(r["warnings"]), ["no pulse issue for finance", "no pulse issue for operations",
+                                                 "no pulse issue for strategy"])
 
     def test_missing_operational_routine_alerts_once_business_runs(self):
         def created(hours_ago):
             return kit.iso(kit.now_utc() - timedelta(hours=hours_ago))
-        # BIZ has reported for less than OPS's alert_after_h: still a warning.
-        r = self.assess([pulse_issue("BIZ", 1, createdAt=created(10)), pulse_issue("FIN", 1)])
+        # Strategy has reported for less than the operations alert_after_h: still a warning.
+        recent = created(OPERATIONS["alert_after_h"] - 1)
+        r = self.assess([pulse_issue("strategy", 1, createdAt=recent), pulse_issue("finance", 1)])
         self.assertEqual(r["alerts"], [])
-        self.assertIn("no pulse issue for OPS", r["warnings"])
-        # BIZ has reported for longer than that and OPS never did: outage.
-        r = self.assess([pulse_issue("BIZ", 1, createdAt=created(20)), pulse_issue("FIN", 1)])
-        self.assertEqual([(a["code"], a["title"]) for a in r["alerts"]], [("OUTAGE", "Routine OPS silent")])
-        # BIZ and FIN have no alert_after_h, so their absence stays a warning however long OPS runs.
-        r = self.assess([pulse_issue("OPS", 1, createdAt=created(100))])
+        self.assertIn("no pulse issue for operations", r["warnings"])
+        # Strategy has reported for longer than that and operations never did: outage.
+        r = self.assess([pulse_issue("strategy", 1, createdAt=created(SILENT_H)), pulse_issue("finance", 1)])
+        self.assertEqual([(a["code"], a["title"]) for a in r["alerts"]], [("OUTAGE", "Routine operations silent")])
+        # Strategy and finance have no alert_after_h, so their absence stays a warning however long operations
+        # runs.
+        r = self.assess([pulse_issue("operations", 1, createdAt=created(100))])
         self.assertEqual(r["alerts"], [])
         # A disabled routine is not evidence that the business is running.
-        r = self.assess([pulse_issue("BIZ", 1, "disabled", createdAt=created(100))])
+        r = self.assess([pulse_issue("strategy", 1, "disabled", createdAt=created(100))])
         self.assertEqual(r["alerts"], [])
 
     def test_guardian_pulse_is_not_an_anchor_for_missing_routine(self):
         old = kit.iso(kit.now_utc() - timedelta(hours=100))
         r = self.assess([pulse_issue("GUARDIAN", 1, createdAt=old)])
         self.assertEqual(r["alerts"], [])
-        self.assertIn("no pulse issue for OPS", r["warnings"])
+        self.assertIn("no pulse issue for operations", r["warnings"])
 
     def test_closed_pulse_issue_still_checked(self):
-        r = self.assess([pulse_issue("OPS", 16, state="CLOSED", number=7), pulse_issue("BIZ", 2),
-                         pulse_issue("FIN", 2)])
-        self.assertEqual([a["title"] for a in r["alerts"]], ["Routine OPS silent"])
-        self.assertIn("OPS: pulse issue #%d is closed - reopen it" % 7, r["warnings"])
+        r = self.assess([pulse_issue("operations", SILENT_H, state="CLOSED", number=7), pulse_issue("strategy", 2),
+                         pulse_issue("finance", 2)])
+        self.assertEqual([a["title"] for a in r["alerts"]], ["Routine operations silent"])
+        self.assertIn("operations: pulse issue #%d is closed - reopen it" % 7, r["warnings"])
         # A closed old issue next to an open one is not worth a warning.
-        r = self.assess([pulse_issue("OPS", 30, state="CLOSED", number=7), pulse_issue("OPS", 1, state="OPEN"),
-                         pulse_issue("BIZ", 2), pulse_issue("FIN", 2)])
+        r = self.assess([pulse_issue("operations", 30, state="CLOSED", number=7), pulse_issue("operations", 1, state="OPEN"),
+                         pulse_issue("strategy", 2), pulse_issue("finance", 2)])
         self.assertEqual((r["alerts"], r["warnings"]), ([], []))
 
-    def test_ops_outage_alerts_after_threshold(self):
-        r = self.assess([pulse_issue("OPS", 16), pulse_issue("BIZ", 2)])
+    def test_operations_outage_alerts_after_threshold(self):
+        r = self.assess([pulse_issue("operations", SILENT_H), pulse_issue("strategy", 2)])
         self.assertEqual([a["code"] for a in r["alerts"]], ["OUTAGE"])
-        r = self.assess([pulse_issue("OPS", 13), pulse_issue("BIZ", 2)])
+        r = self.assess([pulse_issue("operations", QUIET_H), pulse_issue("strategy", 2)])
         self.assertEqual(r["alerts"], [])
-        self.assertTrue(any("OPS" in w for w in r["warnings"]))
+        self.assertTrue(any("operations" in w for w in r["warnings"]))
 
     def test_all_silent(self):
-        r = self.assess([pulse_issue("OPS", 40), pulse_issue("BIZ", 40)])
+        r = self.assess([pulse_issue("operations", 40), pulse_issue("strategy", 40)])
         self.assertIn("All routines silent", [a["title"] for a in r["alerts"]])
         # The guardian's own pulse is always fresh; it must not mask the outage.
-        r = self.assess([pulse_issue("OPS", 40), pulse_issue("BIZ", 40), pulse_issue("GUARDIAN", 1)])
+        r = self.assess([pulse_issue("operations", 40), pulse_issue("strategy", 40), pulse_issue("GUARDIAN", 1)])
         self.assertIn("All routines silent", [a["title"] for a in r["alerts"]])
-        r = self.assess([pulse_issue("OPS", 40), pulse_issue("BIZ", 2), pulse_issue("GUARDIAN", 1)])
+        r = self.assess([pulse_issue("operations", 40), pulse_issue("strategy", 2), pulse_issue("GUARDIAN", 1)])
         self.assertNotIn("All routines silent", [a["title"] for a in r["alerts"]])
 
     def test_outage_title_is_stable(self):
-        first = self.assess([pulse_issue("OPS", 16)])["alerts"][0]
-        later = kit.assess_guardian([pulse_issue("OPS", 16)], [], LIMITS, kit.now_utc() + timedelta(hours=1), False, None)
-        self.assertEqual(first["title"], "Routine OPS silent")
+        first = self.assess([pulse_issue("operations", SILENT_H)])["alerts"][0]
+        later = kit.assess_guardian([pulse_issue("operations", SILENT_H)], [], LIMITS,
+                                    kit.now_utc() + timedelta(hours=1), False, None)
+        self.assertEqual(first["title"], "Routine operations silent")
         self.assertEqual(later["alerts"][0]["title"], first["title"])
-        self.assertIn("17 h", later["alerts"][0]["body"])
+        self.assertIn(f"{SILENT_H + 1} h", later["alerts"][0]["body"])
 
     def test_stuck_shift_warning(self):
-        r = self.assess([pulse_issue("OPS", 5, "in-progress")])
+        r = self.assess([pulse_issue("operations", OPERATIONS["max_shift_h"] + 1, "in-progress")])
         self.assertTrue(any("interrupted" in w for w in r["warnings"]))
 
     def test_constitution_tampering(self):
@@ -428,31 +435,32 @@ class TestGuardian(Base):
         self.assertIn("No history", empty["warnings"][0])
 
     def test_stop_skips_pulse_checks(self):
-        r = self.assess([pulse_issue("OPS", 99)], stop=True)
+        r = self.assess([pulse_issue("operations", 99)], stop=True)
         self.assertTrue(r["stop"])
         self.assertEqual(r["alerts"], [])
 
     def test_cap_alert(self):
-        cap = {"period": "2026-P2", "revenue": "960", "limit": "1000", "percent": 96.0, "threshold": 0.95}
+        highest, lower = LIMITS["revenue"]["alert_thresholds"][-1], LIMITS["revenue"]["alert_thresholds"][-2]
+        cap = {"period": "2026-P2", "revenue": "960", "limit": "1000", "percent": 96.0, "threshold": highest}
         self.assertEqual(self.assess([], cap=cap)["alerts"][0]["code"], "CAP")
         first = self.assess([], cap=cap)["alerts"][0]
         cap.update(revenue="990", percent=99.0)
         later = self.assess([], cap=cap)["alerts"][0]
         self.assertEqual((first["title"], later["title"]), ("Revenue cap 2026-P2 reached",) * 2)
         self.assertIn("99.0%", later["body"])
-        cap.update(threshold=0.85, percent=86.0)
+        cap.update(threshold=lower, percent=lower * 100 + 1)
         self.assertEqual(self.assess([], cap=cap)["alerts"], [])
 
     def test_cap_alert_uses_highest_configured_threshold(self):
         limits = json.loads(json.dumps(LIMITS))
-        limits["revenue"]["alert_thresholds"] = [0.8, 0.9]
-        cap = {"period": "2026-P2", "revenue": "900", "limit": "1000", "percent": 90.0, "threshold": 0.9}
+        limits["revenue"]["alert_thresholds"] = [0.75, 0.85]
+        cap = {"period": "2026-P2", "revenue": "850", "limit": "1000", "percent": 85.0, "threshold": 0.85}
         r = kit.assess_guardian([], [commit("owner", "a")], limits, kit.now_utc(), False, cap)
         self.assertEqual([a["code"] for a in r["alerts"]], ["CAP"])
-        cap.update(threshold=0.8, percent=85.0)
+        cap.update(threshold=0.75, percent=80.0)
         r = kit.assess_guardian([], [commit("owner", "a")], limits, kit.now_utc(), False, cap)
         self.assertEqual(r["alerts"], [])
-        self.assertIn("Revenue cap 2026-P2: 85.0%", r["warnings"])
+        self.assertIn("Revenue cap 2026-P2: 80.0%", r["warnings"])
 
 
 class FakeDiscord:
@@ -498,9 +506,9 @@ class TestAlarm(Base):
         self.assertEqual(len(self.fake.sent), 1)
 
     def test_daily_budget_and_security_exempt(self):
-        for i in range(3):
+        for i in range(ALERT_BUDGET):
             self.assertEqual(self.send(title=f"a{i}")[0], 0)
-        self.assertEqual(self.send(title="a4")[0], 4)
+        self.assertEqual(self.send(title="over budget")[0], 4)
         self.assertEqual(self.send("SECURITY", "leak")[0], 0)
 
     def test_no_config_is_plan_b(self):
@@ -513,7 +521,7 @@ class TestAlarm(Base):
 
     def test_owner_commands_only(self):
         self.fake.history = [
-            {"id": "3", "content": "!yes 12", "author": {"id": "42"}, "timestamp": "2026-05-10T11:00:00Z"},
+            {"id": "3", "content": "!yes 123", "author": {"id": "42"}, "timestamp": "2026-05-10T11:00:00Z"},
             {"id": "2", "content": "!start", "author": {"id": "99"}, "timestamp": "2026-05-10T10:30:00Z"},
             {"id": "1", "content": "!stop", "author": {"id": "42"}, "timestamp": "2026-05-10T10:00:00Z"}]
         result = alarm.commands(CFG)
@@ -528,7 +536,7 @@ class TestAlarm(Base):
         self.assertEqual(len(self.fake.sent), 2)
 
     def test_dedupe_ignores_header_in_body(self):
-        alarm.alarm(CFG, "OUTAGE", "Routine BIZ silent", "see also [SECURITY] Token leak", "", "", LIMITS)
+        alarm.alarm(CFG, "OUTAGE", "Routine strategy silent", "see also [SECURITY] Token leak", "", "", LIMITS)
         self.assertEqual(self.send("SECURITY", "Token leak")[1], "sent: [SECURITY] Token leak")
         self.assertEqual(len(self.fake.sent), 2)
 
@@ -595,12 +603,12 @@ class TestAlarm(Base):
             alarm.commands(dict(CFG, owner=""))
 
     def test_status_reply_is_not_an_alert(self):
-        for i in range(3):
+        for i in range(ALERT_BUDGET):
             self.send(title=f"a{i}")
         self.assertEqual(alarm.status(CFG, "All routines ok."), (0, "status sent"))
         self.assertTrue(self.fake.sent[-1].startswith("ℹ️ [STATUS]"))
         self.assertNotIn("<@42>", self.fake.sent[-1])
-        self.assertEqual(self.send(title="a4")[0], 4)  # the budget counts the three alerts only
+        self.assertEqual(self.send(title="over budget")[0], 4)  # the budget counts the alerts only
         self.assertEqual(alarm.status(dict(CFG, token="", channel=""), "x")[0], 2)
         for i in range(2):
             alarm.status(CFG, "again")
@@ -626,7 +634,7 @@ class TestAlarm(Base):
             code = alarm.main(argv)
         return code, out.getvalue(), err.getvalue()
 
-    def test_commands_not_configured_vs_failing(self):
+    def test_commands_not_configured_vs_partial_setup(self):
         code, out, _ = self.main(["commands"], {})
         self.assertEqual((code, json.loads(out)["stop_state"]), (2, "not_configured"))
         code, out, _ = self.main(["commands"], {"DISCORD_WEBHOOK_URL": "https://hooks.example.com/w/1"})
@@ -634,6 +642,13 @@ class TestAlarm(Base):
         code, out, _ = self.main(["commands"], {"DISCORD_BOT_TOKEN": "t", "DISCORD_CHANNEL_ID": "1"})  # no owner
         result = json.loads(out)
         self.assertEqual((code, result["stop_state"], result["stop"]), (3, "unknown", None))
+        self.assertTrue(result["stop_reason"].startswith("configuration error"))
+        # A webhook plus the owner id is a half-finished bot setup: the owner expects !stop to work, so the
+        # STOP state is unknown (fail closed), not "chat not used".
+        code, out, _ = self.main(["commands"], {"DISCORD_WEBHOOK_URL": "https://hooks.example.com/w/1",
+                                                "DISCORD_OWNER_ID": "42"})
+        result = json.loads(out)
+        self.assertEqual((code, result["stop_state"]), (3, "unknown"))
         self.assertTrue(result["stop_reason"].startswith("configuration error"))
         env = {"DISCORD_BOT_TOKEN": "t", "DISCORD_CHANNEL_ID": "1", "DISCORD_OWNER_ID": "42"}
         with mock.patch.object(alarm, "commands", mock.Mock(side_effect=KeyError("id"))):
@@ -708,11 +723,11 @@ class TestGuardianRunner(Base):
             guardian.main()
 
     def test_consecutive_runs_one_outage(self):
-        state = {"pulses": [pulse_issue("OPS", 16), pulse_issue("BIZ", 2)], "issues": []}
+        state = {"pulses": [pulse_issue("operations", SILENT_H), pulse_issue("strategy", 2)], "issues": []}
         self.run_guardian(state)  # no Discord configured -> plan B issue
         with mock.patch.dict("os.environ", {"KIT_NOW": "2026-05-10T13:00:00Z"}):
-            self.run_guardian(state)  # one hour later, OPS still silent
-        self.assertEqual([t for t in state["issues"] if t.startswith("[OUTAGE]")], ["[OUTAGE] Routine OPS silent"])
+            self.run_guardian(state)  # one hour later, operations still silent
+        self.assertEqual([t for t in state["issues"] if t.startswith("[OUTAGE]")], ["[OUTAGE] Routine operations silent"])
 
         fake = FakeDiscord()  # with Discord: one chat alert, the second run is a duplicate
         with mock.patch.object(alarm, "http", fake):

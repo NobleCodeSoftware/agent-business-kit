@@ -30,44 +30,39 @@
   "description": "Report for the owner"
  },
  {
-  "name": "dept:ops",
+  "name": "dept:operations",
   "color": "0e8a16",
-  "description": "Department OPS"
+  "description": "Role: operations (docs/departments.md)"
  },
  {
-  "name": "dept:biz",
+  "name": "dept:strategy",
   "color": "0e8a16",
-  "description": "Department BIZ"
+  "description": "Role: strategy (docs/departments.md)"
  },
  {
-  "name": "dept:bld",
+  "name": "dept:product",
   "color": "0e8a16",
-  "description": "Department BLD"
+  "description": "Role: product (docs/departments.md)"
  },
  {
-  "name": "dept:grw",
+  "name": "dept:marketing",
   "color": "0e8a16",
-  "description": "Department GRW"
+  "description": "Role: marketing (docs/departments.md)"
  },
  {
-  "name": "dept:qa",
+  "name": "dept:quality",
   "color": "0e8a16",
-  "description": "Department QA"
+  "description": "Role: quality (docs/departments.md)"
  },
  {
-  "name": "dept:fin",
+  "name": "dept:finance",
   "color": "0e8a16",
-  "description": "Department FIN"
+  "description": "Role: finance (docs/departments.md)"
  },
  {
-  "name": "dept:sup",
+  "name": "dept:support",
   "color": "0e8a16",
-  "description": "Department SUP"
- },
- {
-  "name": "dept:it",
-  "color": "0e8a16",
-  "description": "Department IT"
+  "description": "Role: support (docs/departments.md)"
  },
  {
   "name": "state:new",
@@ -82,7 +77,7 @@
  {
   "name": "state:review",
   "color": "f9d0c4",
-  "description": "Waiting for QA review"
+  "description": "Waiting for quality review"
  },
  {
   "name": "state:blocked",

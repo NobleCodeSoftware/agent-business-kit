@@ -13,13 +13,15 @@ Department cards, routine prompts (`routines/`), processes (`processes/`), tools
    and the rollback plan.
 3. **Tests:** every change in `tools/` passes `python3 -m unittest discover -s tools/tests` (locally
    and in CI).
-4. **QA review** by an agent other than the author. For changes to routine prompts QA additionally
-   checks that the minimal invariants remain (STOP, pulse, alert, no external actions on corrupted
-   state).
-5. **Merge** by OPS (processes, prompts, tools) or by the file's owner (e.g. FIN for `finance/`).
-6. **Measurement:** after a week BIZ or IT checks whether the change had an effect. If not, revert.
+4. **Quality review** by an agent other than the author. For changes to routine prompts Quality
+   additionally checks that the minimal invariants remain (STOP, pulse, alert, no external actions on
+   corrupted state).
+5. **Merge** by Operations (processes, prompts, tools) or by the file's owner (e.g. Finance for
+   `finance/`).
+6. **Measurement:** after a week Strategy or Operations checks whether the change had an effect. If
+   not, revert.
 
-## Weekly retrospective (part of the BIZ Monday review)
+## Weekly retrospective (part of the Monday strategy review)
 
 - What went well, what went badly, what we learned -> `knowledge/lessons.md`.
 - Which processes or prompts slowed work or produced errors -> tasks for the file owners.
@@ -29,4 +31,4 @@ Department cards, routine prompts (`routines/`), processes (`processes/`), tools
 
 A new department, routine or higher frequency appears only when there is work for it confirmed by data
 (e.g. Customer Support after the first customer). Structure without work burns subscription limit and
-creates noise. OPS may change the schedule within `limits.json`. Anything above goes to the desk.
+creates noise. Operations may change the schedule within `limits.json`. Anything above goes to the desk.

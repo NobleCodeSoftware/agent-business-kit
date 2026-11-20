@@ -1,14 +1,15 @@
-# Business development (BIZ): process
+# Business development: process
 
-BIZ answers three questions: **what works, what does not, and what do we do next.** It manages a
-portfolio of experiments like an investor. Each experiment is a bet with a defined stake (money and
-compute), a hypothesis and a stop condition fixed in advance.
+Business development is the job of the Strategy role and its routine. It answers three questions:
+**what works, what does not, and what do we do next.** It manages a portfolio of experiments like an
+investor. Each experiment is a bet with a defined stake (money and compute), a hypothesis and a stop
+condition fixed in advance.
 
 ## Rhythm
 
 | When | What | Output |
 |---|---|---|
-| Every morning (BIZ routine) | Signal review: channel metrics, deviations, new opportunities from watched sources | note in `knowledge/signals/YYYY-MM-DD.md`, experiment cards updated |
+| Every morning (strategy routine) | Signal review: channel metrics, deviations, new opportunities from watched sources | note in `knowledge/signals/YYYY-MM-DD.md`, experiment cards updated |
 | Monday (full mode) | Portfolio review: a decision for each experiment (stop, continue, scale, pivot), re-rank the opportunity backlog, 1-3 new proposals, red-team critique | decision records, weekly report for the owner |
 | Last day of the month | Strategy memo: P&L, unit economics, lessons, next month's plan. Investment memo if the data justifies it | `decisions/memo-YYYY-MM.md`, a desk item when asking for capital |
 
@@ -52,8 +53,8 @@ or pretending to be human) is out regardless of its score.
 
 ## Red team
 
-Before every "scale" or "new experiment" decision BIZ launches a separate subagent whose only job is to
-find reasons **not** to do it: run a pre-mortem, check the data, expose hidden costs and platform-terms
+Before every "scale" or "new experiment" decision Strategy launches a separate subagent whose only job
+is to find reasons **not** to do it: run a pre-mortem, check the data, expose hidden costs and platform-terms
 risks. The response to the critique goes into the decision record. A decision without critique is
 considered not thought through.
 
@@ -61,9 +62,9 @@ considered not thought through.
 
 Every forecast (e.g. "P(first sale within 21 days) = 35%") is logged in `knowledge/calibration.csv`
 (columns: `date,experiment,event,probability,deadline,outcome`). When the deadline passes, fill
-`outcome` with 1 or 0. Each month BIZ runs `python3 tools/kit.py brier` and checks whether the business
-is systematically over-optimistic (mean forecast above base rate). Findings correct future forecasts and
-stop thresholds. This is how the business learns from its own results rather than from hunches.
+`outcome` with 1 or 0. Each month Strategy runs `python3 tools/kit.py brier` and checks whether the
+business is systematically over-optimistic (mean forecast above base rate). Findings correct future
+forecasts and stop thresholds. This is how the business learns from its own results rather than from hunches.
 
 ## Decision record (`decisions/DR-<n>-<slug>.md`)
 

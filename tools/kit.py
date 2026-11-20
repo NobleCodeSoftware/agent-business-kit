@@ -659,8 +659,8 @@ def assess_guardian(pulses: list[dict], constitution_commits: list[dict], limits
     # than that: the business is demonstrably running without it. On a fresh install (no other routine
     # reporting yet) this stays a warning, so setting up the routines one by one raises no alert.
     # The guardian's own pulse issue is never the anchor: it only shows that the guardian runs, not
-    # that the business does, so a lone OPS that never pulsed stays a warning however long the guardian
-    # has been reporting.
+    # that the business does, so an operations routine that never pulsed stays a warning however long
+    # the guardian has been reporting.
     for routine, rules in sorted(config.items()):
         if routine == GUARDIAN or routine in latest:
             continue

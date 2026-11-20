@@ -8,13 +8,15 @@ says so.
 ## The moving parts
 
 - **The owner** decides, pays and signs. They answer desk items with yes or no and can stop everything.
-- **Three scheduled routines** (OPS, BIZ, FIN). Every run starts a fresh Claude Code cloud session with
-  a fresh clone of the repositories attached to the routine (`routines/README.md`). The session runs
-  its department prompt (`routines/OPS.md`, `routines/BIZ.md`, `routines/FIN.md`).
+- **Three scheduled routines** (operations, strategy, finance; example roles from
+  `docs/departments.md`). Every run starts a fresh Claude Code cloud session with a fresh clone of the
+  repositories attached to the routine (`routines/README.md`). The session runs its role's prompt
+  (`routines/operations.md`, `routines/strategy.md`, `routines/finance.md`).
 - **The guardian** is a GitHub Actions workflow (`.github/workflows/guardian.yml`) that runs
   `tools/guardian.py` every hour. It uses no AI.
 - **State** lives in the repo and in GitHub issues: tasks, desk items, incidents, pulses, experiments
-  (`processes/TASKS.md`, `processes/RESILIENCE.md`, `processes/BUSINESS_DEVELOPMENT.md`). No session is expected to remember anything.
+  (`processes/TASKS.md`, `processes/RESILIENCE.md`, `processes/BUSINESS_DEVELOPMENT.md`). No session
+  is expected to remember anything.
 - **Rules** sit in `constitution/CONSTITUTION.md` and the numbers in `constitution/limits.json`.
   Agents may not change either; the prompts enforce this and the guardian checks commit authors.
 
@@ -25,15 +27,15 @@ The default schedule in `constitution/limits.json` (all times UTC):
 | Time | What runs | Prompt / script |
 |---|---|---|
 | every hour at :23 | Guardian | `.github/workflows/guardian.yml` -> `tools/guardian.py` |
-| 00:00 | OPS shift | `routines/OPS.md` |
-| 06:00 | OPS shift | `routines/OPS.md` |
-| 07:30 | BIZ shift (full mode on Mondays) | `routines/BIZ.md` |
-| 12:00 | OPS shift | `routines/OPS.md` |
-| 18:00 | OPS shift | `routines/OPS.md` |
-| 20:30 | FIN shift | `routines/FIN.md` |
+| 00:00 | operations shift | `routines/operations.md` |
+| 06:00 | operations shift | `routines/operations.md` |
+| 07:30 | strategy shift (full mode on Mondays) | `routines/strategy.md` |
+| 12:00 | operations shift | `routines/operations.md` |
+| 18:00 | operations shift | `routines/operations.md` |
+| 20:30 | finance shift | `routines/finance.md` |
 
-That is six routine runs per day, which matches `power.max_routine_runs_per_day`. OPS may move the
-schedule within the bounds of `limits.json`; anything beyond them goes to the desk
+That is six routine runs per day, which matches `power.max_routine_runs_per_day`. Operations may move
+the schedule within the bounds of `limits.json`; anything beyond them goes to the desk
 (`processes/CHANGE.md`).
 
 ### What every shift does first
@@ -51,17 +53,18 @@ All three prompts share the same invariants:
    (`finance/ledger.csv`), the cost log (`finance/costs.csv`) and the forecast log
    (`knowledge/calibration.csv`). If it fails, the shift takes no external actions, opens a
    `type:incident` issue, sets its pulse to `degraded` and ends.
-4. At the end, replace the body of its pulse issue ("Pulse: OPS", "Pulse: BIZ", "Pulse: FIN", label
-   `type:pulse`) with the output of `python3 tools/kit.py pulse --routine <NAME> --status ...`.
+4. At the end, replace the body of its pulse issue ("Pulse: operations", "Pulse: strategy",
+   "Pulse: finance", label `type:pulse`) with the output of
+   `python3 tools/kit.py pulse --routine <name> --status ...`.
 
-### OPS (four times a day)
+### Operations (four times a day)
 
-The shift procedure in `routines/OPS.md`:
+The shift procedure in `routines/operations.md`:
 
 1. **Owner commands.** Read `!stop`, `!start`, `!status`, `!yes N`, `!no N` from the alert channel,
    apply them (`!status` is answered with `python3 tools/alarm.py status`, which does not count
    toward the daily alert cap), and acknowledge each with `python3 tools/alarm.py ack --id <id>`.
-2. **Health.** Read the BIZ, FIN and GUARDIAN pulses. A stale pulse is treated as an incident.
+2. **Health.** Read the strategy, finance and GUARDIAN pulses. A stale pulse is treated as an incident.
 3. **Leases.** Build a JSON list of `state:in-progress` tasks with their comments and run
    `python3 tools/kit.py tasks assess <file>`. For each task the tool answers `leave`,
    `return_to_queue` or `block`, and lists intents that have no recorded result.
@@ -70,10 +73,10 @@ The shift procedure in `routines/OPS.md`:
 5. **Queue.** Take `state:new` tasks by priority (`p1-security-legal` first), claim each with a lease
    comment from `python3 tools/kit.py lease`, delegate to a department subagent
    (`docs/departments.md`), record `kit.py intent` before and `kit.py result` after each external
-   action, and send work to QA review.
+   action, and send work to quality review.
 6. **Close.** Pulse, shift summary, and hand back unfinished tasks with a reason.
 
-### BIZ (every morning)
+### Strategy (every morning)
 
 Signal review into `knowledge/signals/<date>.md`, experiment cards updated, and forecasts whose
 deadline has passed resolved in `knowledge/calibration.csv` (`outcome` set to 1 or 0). On Mondays:
@@ -81,14 +84,14 @@ portfolio review, a red-team subagent before any "scale" or "new experiment" dec
 records and a weekly report issue. On the last day of the month: a strategy memo and
 `python3 tools/kit.py brier`. Details: `processes/BUSINESS_DEVELOPMENT.md`.
 
-### FIN (every evening)
+### Finance (every evening)
 
 Record new sales with `python3 tools/kit.py ledger add` (a repeated channel and transaction id is
 skipped, so reruns do not double-count), record approved costs with their desk item number, check the
-optional revenue cap with `python3 tools/kit.py cap`, audit the OPS report against source data and
-check the reserve rule. At the highest cap threshold FIN tells BIZ; the `CAP` alert itself comes only
-from the guardian, so the owner gets one alert (FIN opens an `urgent` issue instead only when the
-guardian's pulse is missing or stale). FIN never moves money.
+optional revenue cap with `python3 tools/kit.py cap`, audit the operations report against source
+data and check the reserve rule. At the highest cap threshold Finance tells Strategy; the `CAP` alert
+itself comes only from the guardian, so the owner gets one alert (Finance opens an `urgent` issue
+instead only when the guardian's pulse is missing or stale). Finance never moves money.
 
 ## How a desk item flows
 
@@ -99,17 +102,19 @@ yes or no without searching or calculating (`processes/DESK.md`).
 1. **Draft.** The department that needs the decision fills the template in `processes/DESK.md`.
    The title carries the action, the amount and a due date:
    `# [DESK] <action> — <amount> — due YYYY-MM-DD`.
-2. **Checks by other departments.** FIN checks amounts, tax effects and funds for spending; QA
+2. **Checks by other roles.** Finance checks amounts, tax effects and funds for spending; Quality
    reviews contracts and terms and lists key points and risks.
-3. **Completeness gate.** OPS runs `python3 tools/kit.py desk check <file>`. It rejects a draft with
-   a missing or empty mandatory section, a missing `**Urgency:**` line, leftover `<placeholder>`
-   fields, or a due date in the past, and exits with code 1. Only a complete item is published.
+3. **Completeness gate.** Operations runs `python3 tools/kit.py desk check <file>`. It rejects a
+   draft with a missing or empty mandatory section, a missing `**Urgency:**` line, leftover
+   `<placeholder>` fields, or a due date in the past, and exits with code 1. Only a complete item is
+   published.
    Compare `examples/desk-item.md` (complete) with `examples/desk-item-incomplete.md`.
-4. **Notice.** OPS sends one batched notice per day with `python3 tools/alarm.py desk`
+4. **Notice.** Operations sends one batched notice per day with `python3 tools/alarm.py desk`
    (`desk.notification` is `once_a_day`). An item due in under 48 hours on which revenue or
    compliance depends goes out immediately as a `DESK` alert (`processes/ESCALATION.md`).
 5. **Answer.** The owner comments `/yes`, `/no` or `/question ...` on the issue, or sends `!yes N` /
-   `!no N` in chat. Chat answers are picked up at the next OPS shift and recorded on the issue.
+   `!no N` in chat. Chat answers are picked up at the next operations shift and recorded on the
+   issue.
 6. **The owner acts.** On yes, the owner performs the steps and comments `done`. Agents run no
    transactions themselves.
 7. **Verify and close.** The department checks the outcome (for example, that the account works),
@@ -117,11 +122,11 @@ yes or no without searching or calculating (`processes/DESK.md`).
 
 ### "No answer" means no
 
-`limits.json` sets `desk.default_deadline_days` (3) and `desk.no_answer: "decline"`;
+`limits.json` sets `desk.default_deadline_days` (5) and `desk.no_answer: "decline"`;
 `kit.py state check` rejects any other value for `desk.no_answer`. Every item states its due date
 in its title line (`kit.py desk check` rejects an item without one); `kit.py` itself does not read
-`desk.default_deadline_days`. When the due date passes without an answer, OPS closes the item with
-the label `result:expired` and the department does what the item's "If you decline or do not
+`desk.default_deadline_days`. When the due date passes without an answer, Operations closes the item
+with the label `result:expired` and the department does what the item's "If you decline or do not
 answer" section says. Waiting for the desk never blocks other work
 (`constitution/CONSTITUTION.md`, section 4). An absent owner slows spending; it does not stop
 operations (`processes/RESILIENCE.md`, failure mode 9).
@@ -182,20 +187,22 @@ when the agents have hit a usage limit. It is off until you set the repository v
 4. **Pulse check.** For each routine it compares the latest pulse with `max_silence_h` in
    `limits.json`. A closed pulse issue is still read (and reported as closed), so closing it does not
    hide the routine. A routine configured in `limits.json` with no pulse at all is a warning ("no
-   pulse issue for FIN"); to silence it, create the routine, remove it from `limits.json`, or have it
-   write a `disabled` pulse. A routine with `alert_after_h` (OPS) that has never pulsed raises an
-   `OUTAGE` alert once another active routine has had a pulse issue for longer than `alert_after_h`;
-   while nothing else reports yet (a fresh install, routines added one by one) it stays a warning.
-   The guardian's own pulse issue never counts as that other routine: it shows that the guardian
-   runs, not that the business does. A silent OPS is a warning from `max_silence_h` and raises an
-   `OUTAGE` alert after `alert_after_h`; a silent BIZ or FIN is a warning for OPS. If more than one routine is active and
-   all of them are silent, it raises an `OUTAGE` alert (the guardian's own pulse does not count).
-   Outage titles are stable ("Routine OPS silent"; the hours are in the body), so hourly runs do not
-   repeat the alert or open a new issue each time. If a routine writes an `in-progress` pulse at
-   the start of a shift and it stays longer than `max_shift_h`, the shift is reported as probably
-   interrupted (the bundled routine prompts write only `ok`, `degraded` or `stop`).
+   pulse issue for finance"); to silence it, create the routine, remove it from `limits.json`, or have
+   it write a `disabled` pulse. A routine with `alert_after_h` (operations) that has never pulsed raises
+   an `OUTAGE` alert once another active routine has had a pulse issue for longer than
+   `alert_after_h`; while nothing else reports yet (a fresh install, routines added one by one) it
+   stays a warning. The guardian's own pulse issue never counts as that other routine: it shows that
+   the guardian runs, not that the business does. A silent operations routine is a warning from
+   `max_silence_h` (10 h in the example, one missed shift) and raises an `OUTAGE` alert after
+   `alert_after_h` (16 h, two missed shifts); a silent strategy or finance routine is a warning for
+   Operations. If more than one routine is active and all of them are silent, it raises an `OUTAGE`
+   alert (the guardian's own pulse does not count). Outage titles are stable ("Routine operations
+   silent"; the hours are in the body), so hourly runs do not repeat the alert or open a new issue
+   each time. If a routine writes an `in-progress` pulse at the start of a shift and it stays longer
+   than `max_shift_h`, the shift is reported as probably interrupted (the bundled routine prompts
+   write only `ok`, `degraded` or `stop`).
 5. **Revenue cap.** If `revenue.period_limit` is set, it warns at the lower `alert_thresholds` and
-   raises a `CAP` alert at the highest one (0.95 by default). It is the only sender of that alert;
+   raises a `CAP` alert at the highest one (0.9 in the example). It is the only sender of that alert;
    its title ("Revenue cap 2026-P2 reached") is stable, so new sales do not repeat it.
 6. Sends alerts through `tools/alarm.py`; if that fails, it opens an `urgent` incident issue.
 7. Rewrites its own "Pulse: GUARDIAN" issue.
@@ -212,7 +219,7 @@ The guardian trusts GitHub author logins. Protect the owner account and the defa
 | `owner.github` | who may change `constitution/` (checked by the guardian; must not be empty) |
 | `timezone` | IANA zone for day boundaries (daily alert cap, desk due dates, revenue periods); `state check` rejects unknown names |
 | `spending.without_desk` | spending allowed without a desk item (`state check` requires 0) |
-| `spending.reserve_percent_of_balance` | share of the balance kept out of experiments; read by the FIN prompt (reserve rule), no tool reads it |
+| `spending.reserve_percent_of_balance` | share of the balance kept out of experiments; read by the finance prompt (reserve rule), no tool reads it |
 | `revenue.*` | optional revenue cap, period length (`period_months`: 1, 2, 3, 4, 6 or 12) and alert thresholds |
 | `alerts.*` | daily alert cap and repeat suppression |
 | `desk.*` | default deadline, what no answer means, notice frequency |

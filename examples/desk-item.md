@@ -1,6 +1,6 @@
 # [DESK] Register the domain for Example Photo Presets — 15 USD — due 2099-02-12
 
-**Urgency:** normal    **Department:** BIZ    **Related:** EXP-2 (photo preset packs)
+**Urgency:** normal    **Department:** strategy    **Related:** EXP-117 (photo preset packs)
 
 ## What exactly you need to do
 1. Open your registrar's search page and look for `example-presets.test`.
@@ -13,7 +13,7 @@ an existing brand is not an option because the store will host user-visible down
 
 ## Cost and return
 - Cost: 15 USD once, paid from the business balance.
-- Expected effect: unblocks launch of EXP-2; forecast P(first sale within 30 days) = 25%.
+- Expected effect: unblocks launch of EXP-117; forecast P(first sale within 30 days) = 25%.
 - Payback: two sales of the 8 USD preset pack cover the domain.
 
 ## Risks and mitigation

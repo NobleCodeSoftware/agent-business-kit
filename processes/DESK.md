@@ -7,27 +7,27 @@ should not have to search, calculate or write anything.** They get a ready packa
 ## Where the desk is
 
 - Issues labelled `type:desk`. Filter: `is:open label:type:desk`.
-- OPS announces new items in one batched chat message, at most once a day.
+- Operations announces new items in one batched chat message, at most once a day.
 - Items with a deadline under 48 h on which revenue or compliance depends go out immediately as a
   `DESK` alert (`processes/ESCALATION.md`).
 
 ## How the owner answers
 
-In an issue comment or in chat (`!yes 12`, `!no 12`):
+In an issue comment or in chat (`!yes 123`, `!no 123`):
 
 - `/yes`: approved; the owner performs the steps and adds `done` when finished.
 - `/no`: declined (a reason is welcome).
 - `/question ...`: answered by the department that prepared the item.
 
-No answer by the deadline means decline. OPS closes the item with the label `result:expired`.
+No answer by the deadline means decline. Operations closes the item with the label `result:expired`.
 
 ## Who prepares an item, and when
 
 1. The department that needs the decision drafts it from the template below.
-2. For spending, FIN checks the amount, tax effects and available funds.
-3. For contracts, terms and accounts, QA reviews the document and lists key points, risks and
+2. For spending, Finance checks the amount, tax effects and available funds.
+3. For contracts, terms and accounts, Quality reviews the document and lists key points, risks and
    prohibitions (e.g. a ban on automation) in the item.
-4. OPS checks completeness with `python3 tools/kit.py desk check <file>` and publishes the issue.
+4. Operations checks completeness with `python3 tools/kit.py desk check <file>` and publishes the issue.
 5. After the owner acts, the department verifies the outcome, adds it to the issue and closes it.
 
 ## Item template
@@ -35,7 +35,7 @@ No answer by the deadline means decline. OPS closes the item with the label `res
 ```markdown
 # [DESK] <action> — <amount or "0"> — due YYYY-MM-DD
 
-**Urgency:** <normal|urgent>    **Department:** <BIZ/OPS/...>    **Related:** <experiment / task>
+**Urgency:** <normal|urgent>    **Department:** <strategy|operations|...>    **Related:** <experiment / task>
 
 ## What exactly you need to do
 1. <step with a ready link>

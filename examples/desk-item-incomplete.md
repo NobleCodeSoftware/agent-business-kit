@@ -1,6 +1,6 @@
 # [DESK] Renew the store theme licence — <amount> — due 2020-01-15
 
-**Department:** OPS    **Related:** none
+**Department:** operations    **Related:** none
 
 <!-- A fictional, deliberately incomplete draft. `kit.py desk check` should reject it. -->
 

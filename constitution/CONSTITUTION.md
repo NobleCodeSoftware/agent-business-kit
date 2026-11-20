@@ -47,16 +47,16 @@ law and with platform terms.
 
 | Decision | Agents alone | Desk (owner decides and acts) |
 |---|---|---|
-| Choice of products, experiments, priorities | yes (BIZ, OPS) | - |
-| Publishing on **approved** channels | yes, after QA approval | - |
-| Prices on approved channels | yes (BIZ), with rationale in a decision record | - |
+| Choice of products, experiments, priorities | yes (Strategy, Operations) | - |
+| Publishing on **approved** channels | yes, after quality approval | - |
+| Prices on approved channels | yes (Strategy), with rationale in a decision record | - |
 | Any spend above 0 | - | yes |
 | New account, new platform, terms acceptance, identity verification | - | yes |
 | Individual customer contract, dispute, legal claim | - | yes |
 | Refund | - | yes (urgent when a statutory deadline runs) |
-| Routine schedule changes **within** `limits.json` | yes (OPS) | - |
+| Routine schedule changes **within** `limits.json` | yes (Operations) | - |
 | Exceeding `limits.json` | - | yes |
-| Changes to department cards, processes, tools, prompts | yes, via PR with QA review | - |
+| Changes to department cards, processes, tools, prompts | yes, via PR with quality review | - |
 | Any change in `constitution/` | no | owner only |
 
 ## 4. The desk
@@ -93,7 +93,7 @@ by the owner.
 ## 7. Limits of self-improvement
 
 Agents **may** improve products, processes, tools, department cards and their own prompts. Every change
-goes through a PR, QA review and tests, and its effect is measured. A bad change is undone with
+goes through a PR, quality review and tests, and its effect is measured. A bad change is undone with
 `git revert`.
 
 Agents **may not**:
@@ -104,7 +104,7 @@ Agents **may not**:
 - spend money,
 - raise limits,
 - run routines above the limit,
-- disable or bypass oversight: the guardian, QA review, pulses and logs.
+- disable or bypass oversight: the guardian, quality review, pulses and logs.
 
 If an agent concludes a limit hurts results, it prepares a change proposal for the desk with analysis.
 
@@ -113,8 +113,8 @@ If an agent concludes a limit hurts results, it prepares a change proposal for t
 - [LEGAL FORM] rules, revenue ceilings, VAT/sales-tax and bookkeeping duties: [SUMMARISE WITH YOUR
   ACCOUNTANT]. If your legal form has a revenue ceiling, set `revenue.period_limit` in `limits.json`
   and the guardian will alert at the configured thresholds.
-- FIN keeps the sales ledger (`finance/ledger.csv`) and the cost log (`finance/costs.csv`).
-- Plan purchases of services with their tax effects in mind. FIN checks the tax impact before each
+- Finance keeps the sales ledger (`finance/ledger.csv`) and the cost log (`finance/costs.csv`).
+- Plan purchases of services with their tax effects in mind. Finance checks the tax impact before each
   new type of purchase.
 
 ## 9. Accountability

@@ -11,8 +11,8 @@ delay costs real money, legal standing or security.
 | `LEGAL` | Letter from an authority, legal claim, accusation of infringement | summons, takedown notice, consumer-agency complaint |
 | `CUSTOMER` | A statutory deadline toward a customer expires within 48 h | complaint, withdrawal from a contract |
 | `ACCOUNT` | Suspension or block of a sales or payment account | ban, withheld payouts |
-| `CAP` | Revenue reached the highest of `revenue.alert_thresholds` (share of the optional ceiling) in `limits.json` | sent by the guardian only; FIN tells BIZ |
-| `OUTAGE` | The business is down: OPS silent for longer than `routines.OPS.alert_after_h` (at least two shifts missed in a row), OPS without any pulse while another routine has reported for that long, or every routine silent | - |
+| `CAP` | Revenue reached the highest of `revenue.alert_thresholds` (share of the optional ceiling) in `limits.json` | sent by the guardian only; Finance tells Strategy |
+| `OUTAGE` | The business is down: the operations routine silent for longer than `routines.operations.alert_after_h` (at least two shifts missed in a row), the operations routine without any pulse while another routine has reported for that long, or every routine silent | - |
 | `DESK` | A desk item has a deadline under 48 h and revenue or compliance depends on it | domain renewal |
 
 Everything else goes to the desk or the report, **not** to an alert.
@@ -20,8 +20,9 @@ Everything else goes to the desk or the report, **not** to an alert.
 ## How we alert
 
 ```bash
-python3 tools/alarm.py send --code OUTAGE --title "Routine OPS silent" \
-  --body "No pulse for 16 h. Last OPS pulse: 2099-01-05 09:12. BIZ and FIN are running." --issue "#12"
+python3 tools/alarm.py send --code OUTAGE --title "Routine operations silent" \
+  --body "No pulse for 17 h. Last operations pulse: 2099-01-05 08:12. Strategy and finance routines are running." \
+  --issue "https://github.com/[OWNER]/[BUSINESS-REPO]/issues/123"
 ```
 
 - Primary channel: a Discord bot. Configuration: `DISCORD_CHANNEL_ID`, `DISCORD_OWNER_ID` and a bot
@@ -45,10 +46,10 @@ python3 tools/alarm.py send --code OUTAGE --title "Routine OPS silent" \
 ## Message format
 
 ```
-🔴 [OUTAGE] Routine OPS silent
-No pulse for 16 h. Last OPS pulse: 2099-01-05 09:12. BIZ and FIN are running.
+🔴 [OUTAGE] Routine operations silent
+No pulse for 17 h. Last operations pulse: 2099-01-05 08:12. Strategy and finance routines are running.
 **Needed from you:** nothing - for information, we are on it
-Issue: #12
+Issue: https://github.com/[OWNER]/[BUSINESS-REPO]/issues/123
 @owner
 ```
 
@@ -63,12 +64,12 @@ Agents accept commands only from the account in `DISCORD_OWNER_ID`, never from o
 |---|---|
 | `!stop` | kill switch: shifts end without external actions |
 | `!start` | resume after `!stop` |
-| `!status` | OPS answers with the state of the business at the next shift (`alarm.py status`, not counted as an alert) |
+| `!status` | Operations answers with the state of the business at the next shift (`alarm.py status`, not counted as an alert) |
 | `!yes <n>` / `!no <n>` | decision on desk item number `<n>` |
 
 Agents read commands at the start of every shift (`python3 tools/alarm.py commands`) and acknowledge
 processed ones with `alarm.py ack`. There is no reading between shifts, so the delay is at most the gap
-between OPS shifts. For an immediate stop, disable the routines in the platform UI.
+between operations shifts. For an immediate stop, disable the routines in the platform UI.
 
 The chat STOP state is the owner's latest `!stop` or `!start`, however far back in the channel it is:
 `alarm.py commands` reads the history page by page (up to 1000 messages) until it finds one. Its JSON
@@ -76,7 +77,10 @@ has `"stop_state"`: `active`, `inactive` (the latest command is `!start`, or the
 was read and has no `!stop`/`!start` at all), or `unknown`. Then `"stop"` is `null`, `"stop_reason"`
 says why, and the exit code is 3. Without any chat setup (Discord is optional) `"stop_state"` is
 `not_configured` and the exit code is 2: shifts then rely on `constitution/STOP` alone. A partial
-setup (for example a channel id without the owner id) is not "not configured": it reports `unknown`.
+setup is not "not configured": as soon as any bot variable is set (`DISCORD_CHANNEL_ID`,
+`DISCORD_OWNER_ID`, a bot token or `DISCORD_AUTH_PROXY`) without the full set, it reports `unknown`.
+This includes a webhook plus `DISCORD_OWNER_ID`: the owner id shows that chat commands were meant to
+work, so the shift stops rather than ignore a `!stop` that may have been sent.
 The state is unknown when:
 
 - the last 1000 messages contain no owner `!stop` or `!start`. This also happens to an owner who has

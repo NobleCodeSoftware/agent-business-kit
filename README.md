@@ -84,12 +84,12 @@ constitution the agents must not edit (see "Limitations").
    |  issues: tasks (leases) | desk | incidents | pulses | experiments     |
    +--^----------------^------------------^-----------------^---------------+
       |                |                  |                 |
-  +---+----+      +----+----+        +----+----+      +-----+------+
-  |  OPS   |      |  BIZ    |        |  FIN    |      |  GUARDIAN  |
-  | shifts |      | experi- |        | ledger, |      | GitHub     |
-  | + sub- |      | ments,  |        | audit   |      | Actions,   |
-  | agents |      | forecast|        |         |      | hourly, no |
-  +---+----+      +----+----+        +----+----+      | AI: pulses,|
+  +---+------+    +----+----+        +----+----+      +-----+------+
+  |operations|    | strategy|        | finance |      |  GUARDIAN  |
+  | shifts + |    | experi- |        | ledger, |      | GitHub     |
+  | sub-     |    | ments,  |        | audit   |      | Actions,   |
+  | agents   |    | forecast|        |         |      | hourly, no |
+  +---+------+    +----+----+        +----+----+      | AI: pulses,|
       ^                ^                  ^           | constitu-  |
       |   scheduled routines: every run is a          | tion guard,|
       +------ fresh cloud session + fresh clone ------+ cap, alerts|
@@ -141,11 +141,12 @@ Prerequisites: a GitHub account, Python 3.10+, and a Claude plan that includes C
    In Settings → Secrets and variables → Actions → Variables, add `GUARDIAN_ENABLED` = `true`. The
    `Guardian` workflow then runs hourly and creates the labels. Run it once by hand from the Actions tab
    to see its "Pulse: GUARDIAN" issue. In a fork, also enable workflows in the Actions tab.
-6. **Create a routine** for OPS with your business repo attached. Every scheduled run starts a fresh
-   cloud session with a fresh clone of the repositories attached to the routine. Replace the
-   `[BRACKETED]` fields in `routines/OPS.md`, commit, and set the routine's prompt as described in
-   `routines/README.md` (the full file, or a short prompt that tells the session to read it). Add BIZ
-   and FIN the same way when OPS runs cleanly.
+6. **Create the operations routine** with your business repo attached. Every scheduled run starts a
+   fresh cloud session with a fresh clone of the repositories attached to the routine. Replace the
+   `[BRACKETED]` fields in `routines/operations.md`, commit, and set the routine's prompt as described
+   in `routines/README.md` (the full file, or a short prompt that tells the session to read it). Add
+   the strategy and finance routines the same way when operations runs cleanly. The role names are
+   examples (`docs/departments.md`); rename or merge them to fit your business.
 7. **(Optional) Alerts:** create a Discord bot and a private channel, then set `DISCORD_CHANNEL_ID`,
    `DISCORD_OWNER_ID` and the bot token (repo secrets for the guardian; environment secret or network
    secret for the agent session). Verify with `python3 tools/alarm.py test`. Without chat, the guardian
@@ -156,12 +157,12 @@ Prerequisites: a GitHub account, Python 3.10+, and a Claude plan that includes C
 
 | Component | Purpose | Try it / where to start |
 |---|---|---|
-| `tools/kit.py` | Owner's desk completeness check (is the yes/no package complete?), sales ledger with a supplied exchange rate, optional revenue cap, forecast scoring (Brier) for experiments, pulses, STOP check, state validation, leases, intent/result records, guardian assessment | `python3 tools/kit.py --help`; e.g. `python3 tools/kit.py pulse --routine OPS --status ok --description "2 tasks done"` |
+| `tools/kit.py` | Owner's desk completeness check (is the yes/no package complete?), sales ledger with a supplied exchange rate, optional revenue cap, forecast scoring (Brier) for experiments, pulses, STOP check, state validation, leases, intent/result records, guardian assessment | `python3 tools/kit.py --help`; e.g. `python3 tools/kit.py pulse --routine operations --status ok --description "2 tasks done"` |
 | `tools/alarm.py` | Owner alerts with dedupe by exact code and title and a daily cap (bot mode only: with just a webhook configured there is no dedupe and no cap, every call sends a message), batched desk notice, owner commands (`!stop`, `!start`, `!status`, `!yes N`; a STOP state that cannot be established is reported as `unknown`, exit code 3, and stops the shift with a `degraded` pulse; without any chat setup it is `not_configured`, exit code 2), plan B exit codes | `python3 tools/alarm.py --help`; after configuring Discord, `python3 tools/alarm.py test` |
 | `tools/guardian.py` | Hourly watchdog for GitHub Actions, independent of the agents: pulses (is the business alive?), constitution integrity, revenue cap, plan B issues | `.github/workflows/guardian.yml`, enabled with the `GUARDIAN_ENABLED` variable (setup step 5) |
 | `constitution/` | Constitution template and `limits.json` (owner, timezone, routines, revenue cap); owner-only | Fill the `[BRACKETED]` fields; `python3 tools/kit.py state check` validates `limits.json` |
 | `processes/` | Desk, escalation, tasks with leases, resilience, change management, business development | Start with `processes/DESK.md` and `examples/desk-item.md` |
-| `routines/` | Shift prompts for OPS, BIZ and FIN and how to set up the routines | `routines/README.md` (routine prompt and example schedule) |
+| `routines/` | Shift prompts for operations, strategy and finance and how to set up the routines | `routines/README.md` (routine prompt and example schedule) |
 | `docs/` | Walkthrough of a business day, Claude Code platform notes (routines, limits, terms) and suggested departments | [`docs/how-it-works.md`](docs/how-it-works.md), then [`docs/claude-platform.md`](docs/claude-platform.md) |
 | Tests and CI | Standard-library unit tests, a basic no-personal-data check, state and example validation | `python3 -m unittest discover -s tools/tests -v`; `.github/workflows/ci.yml` |
 
@@ -194,12 +195,12 @@ Exit codes of `kit.py`: 0 OK, 1 validation error, 2 configuration or network err
 - **Usage limits are real.** Without usage credits, runs over the limit are rejected until the window
   resets; the kit assumes they are not retried (not documented). The guardian detects the silence; it
   cannot create capacity.
-- **Prompt injection is mitigated, not solved.** Rules say external content is data, and QA reviews
-  public output, but a determined attack on an agent with tool access remains a risk. Keep tool
-  permissions narrow and secrets out of the agent's reach (network secrets, scoped tokens). A network
-  secret hides the Discord bot token, but the agent can still use it for any request to `discord.com`:
-  give the bot permissions in one private channel only (send, read, react) and no server-level
-  permissions.
+- **Prompt injection is mitigated, not solved.** Rules say external content is data, and the Quality
+  role reviews public output, but a determined attack on an agent with tool access remains a risk.
+  Keep tool permissions narrow and secrets out of the agent's reach (network secrets, scoped tokens).
+  A network secret hides the Discord bot token, but the agent can still use it for any request to
+  `discord.com`: give the bot permissions in one private channel only (send, read, react) and no
+  server-level permissions.
 - **The constitution is protected by rules, not by the tools.** Agents must not edit `constitution/`;
   the prompts say so and the guardian checks commit authors by GitHub login only. Commits, PRs and
   connector actions from routines may carry the owner's login, and then the guardian cannot tell them
@@ -237,10 +238,10 @@ Issues and pull requests that close these gaps without adding runtime dependenci
 ```
 constitution/   template constitution + limits.json (owner-only)
 processes/      DESK, ESCALATION, TASKS, RESILIENCE, CHANGE, BUSINESS_DEVELOPMENT
-routines/       shift prompts (OPS, BIZ, FIN) + routine setup and schedule
+routines/       shift prompts (operations, strategy, finance) + routine setup and schedule
 docs/           how it works (walkthrough), platform notes, suggested departments
 examples/       fictional desk items (one complete, one deliberately incomplete)
-knowledge/      calibration.csv: forecast log kept by BIZ, validated by state check, scored by kit.py brier
+knowledge/      calibration.csv: forecast log (Strategy), validated by state check, scored by kit.py brier
 tools/          kit.py, alarm.py, guardian.py, labels.json, tests/
 .github/        CI and guardian workflows, issue templates
 ```
